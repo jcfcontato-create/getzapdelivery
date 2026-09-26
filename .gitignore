@@ -17,3 +17,9 @@ build/
 # Sistema
 .DS_Store
 Thumbs.db
+
+gzdeploy
+gzdeploy.pub
+*.pem
+id_rsa*
+id_ed25519*
