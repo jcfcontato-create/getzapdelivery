@@ -7,9 +7,9 @@ on:
 
 jobs:
   publicar:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     steps:
-      - name: Baixar o código
+      - name: Baixar o codigo
         uses: actions/checkout@v4
 
       - name: Preparar Node.js
@@ -17,30 +17,25 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Instalar dependências do app
+      - name: Instalar dependencias do app
         working-directory: app
         run: npm ci
 
-      - name: Gerar config.js com as credenciais de produção
+      - name: Gerar config.js com as credenciais de producao
         working-directory: app
         run: |
           cat > public/config.js << EOF
           window.__GZ_CONFIG__ = { supabaseUrl: "${{ secrets.VITE_SUPABASE_URL }}", supabaseKey: "${{ secrets.VITE_SUPABASE_ANON_KEY }}" }
           EOF
 
-      - name: Buildar o app (cardápio + painel + admin)
+      - name: Buildar o app (cardapio + painel + admin)
         working-directory: app
         run: npm run build
 
-      - name: Publicar os arquivos na VPS
-        uses: burnett01/rsync-deployments@7.0.1
-        with:
-          switches: -avzr --delete
-          path: app/dist/
-          remote_path: ${{ secrets.VPS_PATH }}/
-          remote_host: ${{ secrets.VPS_HOST }}
-          remote_user: ${{ secrets.VPS_USER }}
-          remote_key: ${{ secrets.VPS_SSH_KEY }}
+      - name: Publicar os arquivos no servidor
+        run: |
+          mkdir -p "${{ secrets.VPS_PATH }}"
+          rsync -avzr --delete app/dist/ "${{ secrets.VPS_PATH }}/"
 
       - name: Preparar CLI do Supabase
         uses: supabase/setup-cli@v1
@@ -48,13 +43,12 @@ jobs:
           version: latest
 
       - name: Ligar ao projeto Supabase
-        working-directory: .
         run: supabase link --project-ref ${{ secrets.SUPABASE_PROJECT_REF }}
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
 
-      - name: Aplicar migrações de banco pendentes
+      - name: Aplicar migracoes de banco pendentes
         run: supabase db push
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
