@@ -1,0 +1,19 @@
+# Segredos (nunca versionar)
+.env
+.env.*
+!.env.example
+credentials.json
+token.json
+
+# Dependências e builds
+node_modules/
+dist/
+build/
+
+# Temporários
+.tmp/
+*.log
+
+# Sistema
+.DS_Store
+Thumbs.db
