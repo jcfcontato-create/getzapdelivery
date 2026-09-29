@@ -35,7 +35,15 @@ const PAG: Record<string, string> = { pix: 'Pix na entrega', dinheiro: 'Dinheiro
 const ABERTOS = ['novo', 'em_preparo', 'saiu_para_entrega']
 const DIAS = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado']
 const HM = (v: string) => v ? v.slice(0, 5) : ''
-const campo = 'w-full rounded-lg border border-neutral-300 bg-white px-3 py-2'
+// Registra uma linha no log de atividades da loja (aba Loja > Exportar log). Não trava a
+// tela nem mostra erro ao usuário se falhar: é um registro de apoio, não pode impedir o
+// trabalho normal do painel.
+function registrarLog(lojaId: string, acao: string) {
+  supabase.auth.getUser().then(({ data }) => {
+    supabase.from('logs_atividade').insert({ loja_id: lojaId, usuario_email: data.user?.email ?? null, acao }).then()
+  })
+}
+const campo ='w-full rounded-lg border border-neutral-300 bg-white px-3 py-2'
 const botao = 'rounded-lg bg-[#1A7F37] px-4 py-2 font-bold text-white disabled:opacity-50'
 const claro = 'rounded-lg border border-neutral-400 bg-white px-3 py-2'
 const Sino = ({ off }: { off: boolean }) => (
@@ -229,7 +237,7 @@ function Area() {
     if (!loja) return
     const aberta = !loja.aberta
     const { error } = await supabase.from('lojas').update({ aberta }).eq('id', loja.id)
-    if (error) setMsg(error.message); else setLoja({ ...loja, aberta })
+    if (error) setMsg(error.message); else { setLoja({ ...loja, aberta }); registrarLog(loja.id, aberta ? 'Loja aberta' : 'Loja fechada') }
   }
   const sair = () => supabase.auth.signOut()
   if (!loja) return <main className="p-8"><p>{msg || 'Carregando…'}</p><button className={claro + ' mt-4'} onClick={sair}>Sair</button></main>
@@ -276,6 +284,7 @@ function Area() {
         {aba === 'loja' && (<>
           <AbaLoja loja={loja} salvo={setLoja} />
           <div className="mt-4"><Horarios loja={loja} /></div>
+          <div className="mt-4"><ExportarLog loja={loja} /></div>
         </>)}
       </main>
     </div>
@@ -293,12 +302,12 @@ function Pedidos({ loja, versao, impAuto, alternarImp }: { loja: Loja; versao: n
   useEffect(() => { carregar(); const t = setInterval(carregar, 15000); return () => clearInterval(t) }, [carregar, versao])
   async function mover(p: Pedido, status: string) {
     const { error } = await supabase.from('pedidos').update({ status }).eq('id', p.id)
-    if (error) setErro(error.message); else carregar()
+    if (error) setErro(error.message); else { carregar(); registrarLog(loja.id, `Pedido #${p.numero} alterado para "${STATUS[status] ?? status}"`) }
   }
   async function excluirPedido(p: Pedido) {
     if (!confirm(`Excluir definitivamente o pedido #${p.numero}? Ele some da lista e também dos relatórios, e essa ação não pode ser desfeita.`)) return
     const { error } = await supabase.from('pedidos').delete().eq('id', p.id)
-    if (error) setErro(error.message); else carregar()
+    if (error) setErro(error.message); else { carregar(); registrarLog(loja.id, `Pedido #${p.numero} excluído`) }
   }
   const mostrados = lista.filter(p => ABERTOS.includes(p.status) === (ver === 'andamento'))
   return (
@@ -400,10 +409,12 @@ function FormProduto({ loja, cats, grupos, gruposIniciais, p, feito, erro }: { l
     if (p) {
       const { error } = await supabase.from('produtos').update(dados).eq('id', p.id)
       if (error) return erro(error.message)
+      registrarLog(loja.id, `Produto editado: "${dados.nome}"`)
     } else {
       const { data: criado, error } = await supabase.from('produtos').insert({ ...dados, loja_id: loja.id }).select('id').single()
       if (error) return erro(error.message)
       produtoId = criado.id
+      registrarLog(loja.id, `Produto criado: "${dados.nome}"`)
     }
     const antes = gruposIniciais ?? []
     const remover = antes.filter(id => !gruposSel.includes(id))
@@ -421,9 +432,13 @@ function FormProduto({ loja, cats, grupos, gruposIniciais, p, feito, erro }: { l
     feito()
   }
   async function excluir() {
-    if (!p || !confirm(`Excluir "${p.nome}"?`)) return
+    if (!p) return
+    const aviso = p.ativo
+      ? `Tem certeza que quer excluir "${p.nome}"? Para apenas tirá-lo do cardápio sem apagar, desmarque a opção "Disponível no cardápio" logo abaixo da foto do produto, em vez de excluir.`
+      : `Excluir "${p.nome}"?`
+    if (!confirm(aviso)) return
     const { error } = await supabase.from('produtos').delete().eq('id', p.id)
-    if (error) erro(error.message); else feito()
+    if (error) erro(error.message); else { registrarLog(loja.id, `Produto excluído: "${p.nome}"`); feito() }
   }
   const [duplicando, setDuplicando] = useState(false)
   async function duplicar() {
@@ -438,6 +453,7 @@ function FormProduto({ loja, cats, grupos, gruposIniciais, p, feito, erro }: { l
     }
     setDuplicando(false)
     erro('')
+    registrarLog(loja.id, `Produto duplicado: "${p.nome}" → "${dados.nome}"`)
     feito()
   }
   const mostrarFoto = fotoPreview || f.foto_url
@@ -521,7 +537,7 @@ function AbaCardapio({ loja }: { loja: Loja }) {
     e.preventDefault()
     if (!nova.trim()) return
     const { error } = await supabase.from('categorias').insert({ loja_id: loja.id, nome: nova.trim(), ordem: cats.length + 1 })
-    if (error) setErro(error.message); else { setNova(''); setErro(''); carregar() }
+    if (error) setErro(error.message); else { registrarLog(loja.id, `Categoria criada: "${nova.trim()}"`); setNova(''); setErro(''); carregar() }
   }
   async function moverCat(indice: number, direcao: -1 | 1) {
     const alvo = indice + direcao
@@ -554,7 +570,8 @@ function AbaCardapio({ loja }: { loja: Loja }) {
         if (buscaLimpa && produtosCategoria.length === 0) return null
         return (
           <div key={c.id}>
-            <CategoriaLinha cat={c} qtdProdutos={prods.filter(p => p.categoria_id === c.id).length}
+            <CategoriaLinha cat={c} loja={loja} qtdProdutos={prods.filter(p => p.categoria_id === c.id).length}
+              qtdAtivos={prods.filter(p => p.categoria_id === c.id && p.ativo).length}
               podeSubir={i > 0} podeDescer={i < cats.length - 1} mover={d => moverCat(i, d)} feito={carregar} erro={setErro} />
             <div className="mt-2 space-y-2">
               {produtosCategoria.map(p => <FormProduto key={p.id + p.preco + p.nome + (ligacoes[p.id]?.join(',') ?? '')} loja={loja} cats={cats} grupos={grupos} gruposIniciais={ligacoes[p.id] ?? []} p={p} feito={carregar} erro={setErro} />)}
@@ -569,7 +586,7 @@ function AbaCardapio({ loja }: { loja: Loja }) {
   )
 }
 
-function CategoriaLinha({ cat, qtdProdutos, podeSubir, podeDescer, mover, feito, erro }: { cat: Cat; qtdProdutos: number; podeSubir: boolean; podeDescer: boolean; mover: (d: -1 | 1) => void; feito: () => void; erro: (m: string) => void }) {
+function CategoriaLinha({ cat, loja, qtdProdutos, qtdAtivos, podeSubir, podeDescer, mover, feito, erro }: { cat: Cat; loja: Loja; qtdProdutos: number; qtdAtivos: number; podeSubir: boolean; podeDescer: boolean; mover: (d: -1 | 1) => void; feito: () => void; erro: (m: string) => void }) {
   const [editando, setEditando] = useState(false)
   const [nome, setNome] = useState(cat.nome)
   async function salvar(e: FormEvent) {
@@ -577,15 +594,18 @@ function CategoriaLinha({ cat, qtdProdutos, podeSubir, podeDescer, mover, feito,
     if (!nome.trim()) return erro('Digite o nome da categoria.')
     const { error } = await supabase.from('categorias').update({ nome: nome.trim() }).eq('id', cat.id)
     if (error) return erro(error.message)
-    erro(''); setEditando(false); feito()
+    erro(''); registrarLog(loja.id, `Categoria renomeada: "${cat.nome}" → "${nome.trim()}"`); setEditando(false); feito()
   }
   async function excluir() {
-    const aviso = qtdProdutos > 0
+    const lembrete = qtdAtivos > 0
+      ? ' Para apenas tirar os produtos dela do cardápio sem apagar nada, desmarque "Disponível no cardápio" em cada produto, em vez de excluir a categoria inteira.'
+      : ''
+    const aviso = (qtdProdutos > 0
       ? `Excluir a categoria "${cat.nome}"? Os ${qtdProdutos} produto(s) dela também serão excluídos.`
-      : `Excluir a categoria "${cat.nome}"?`
+      : `Excluir a categoria "${cat.nome}"?`) + lembrete
     if (!confirm(aviso)) return
     const { error } = await supabase.from('categorias').delete().eq('id', cat.id)
-    if (error) erro(error.message); else { erro(''); feito() }
+    if (error) erro(error.message); else { erro(''); registrarLog(loja.id, `Categoria excluída: "${cat.nome}"${qtdProdutos > 0 ? ` (${qtdProdutos} produto(s) junto)` : ''}`); feito() }
   }
   if (editando) {
     return (
@@ -624,13 +644,14 @@ function FormZona({ loja, z, feito, erro }: { loja: Loja; z?: Zona; feito: () =>
     const { error } = z ? await supabase.from('zonas_entrega').update(dados).eq('id', z.id) : await supabase.from('zonas_entrega').insert({ ...dados, loja_id: loja.id })
     if (error) return erro(error.message)
     erro('')
+    registrarLog(loja.id, z ? `Bairro editado: "${dados.bairro}"` : `Bairro criado: "${dados.bairro}"`)
     if (!z) { setBairro(''); setTaxa('') }
     feito()
   }
   async function excluir() {
     if (!z || !confirm(`Excluir o bairro "${z.bairro}"?`)) return
     const { error } = await supabase.from('zonas_entrega').delete().eq('id', z.id)
-    if (error) erro(error.message); else feito()
+    if (error) erro(error.message); else { registrarLog(loja.id, `Bairro excluído: "${z.bairro}"`); feito() }
   }
   return (
     <form onSubmit={salvar} className="grid grid-cols-[1fr_7rem] gap-2 rounded-xl border border-neutral-200 bg-white p-3">
@@ -686,6 +707,7 @@ function AbaAdicionais({ loja }: { loja: Loja }) {
     const max = tipo === 'multipla' && maximo.trim() ? parseInt(maximo, 10) : null
     const { error } = await supabase.from('grupos_adicionais').insert({ loja_id: loja.id, nome: nome.trim(), tipo, obrigatorio, maximo: max, ordem: grupos.length + 1 })
     if (error) return setErro(error.message)
+    registrarLog(loja.id, `Grupo de adicionais criado: "${nome.trim()}"`)
     setErro(''); setNome(''); setTipo('unica'); setObrigatorio(false); setMaximo(''); carregar()
   }
   return (
@@ -707,12 +729,12 @@ function AbaAdicionais({ loja }: { loja: Loja }) {
       </form>
       {grupos.map(g => (
         <div key={g.id} className="rounded-xl border border-neutral-200 bg-white p-3">
-          <GrupoLinha grupo={g} feito={carregar} erro={setErro} />
+          <GrupoLinha grupo={g} loja={loja} feito={carregar} erro={setErro} />
           <div className="mt-2 space-y-2 pl-2">
-            {itens.filter(i => i.grupo_id === g.id).map(i => <FormItemAdicional key={i.id + i.nome + i.preco} grupoId={g.id} item={i} feito={carregar} erro={setErro} />)}
+            {itens.filter(i => i.grupo_id === g.id).map(i => <FormItemAdicional key={i.id + i.nome + i.preco} grupoId={g.id} loja={loja} item={i} feito={carregar} erro={setErro} />)}
             <details className="rounded-lg bg-neutral-100 p-2">
               <summary className="cursor-pointer text-sm font-semibold">Novo item neste grupo</summary>
-              <div className="mt-2"><FormItemAdicional grupoId={g.id} feito={carregar} erro={setErro} /></div>
+              <div className="mt-2"><FormItemAdicional grupoId={g.id} loja={loja} feito={carregar} erro={setErro} /></div>
             </details>
           </div>
         </div>
@@ -721,7 +743,7 @@ function AbaAdicionais({ loja }: { loja: Loja }) {
   )
 }
 
-function GrupoLinha({ grupo, feito, erro }: { grupo: Grupo; feito: () => void; erro: (m: string) => void }) {
+function GrupoLinha({ grupo, loja, feito, erro }: { grupo: Grupo; loja: Loja; feito: () => void; erro: (m: string) => void }) {
   const [editando, setEditando] = useState(false)
   const [nome, setNome] = useState(grupo.nome)
   const [tipo, setTipo] = useState(grupo.tipo)
@@ -733,12 +755,12 @@ function GrupoLinha({ grupo, feito, erro }: { grupo: Grupo; feito: () => void; e
     const max = tipo === 'multipla' && maximo.trim() ? parseInt(maximo, 10) : null
     const { error } = await supabase.from('grupos_adicionais').update({ nome: nome.trim(), tipo, obrigatorio, maximo: max }).eq('id', grupo.id)
     if (error) return erro(error.message)
-    erro(''); setEditando(false); feito()
+    erro(''); registrarLog(loja.id, `Grupo de adicionais editado: "${grupo.nome}"${grupo.nome !== nome.trim() ? ` → "${nome.trim()}"` : ''}`); setEditando(false); feito()
   }
   async function excluir() {
     if (!confirm(`Excluir o grupo "${grupo.nome}"? Os itens dele também serão excluídos.`)) return
     const { error } = await supabase.from('grupos_adicionais').delete().eq('id', grupo.id)
-    if (error) erro(error.message); else { erro(''); feito() }
+    if (error) erro(error.message); else { erro(''); registrarLog(loja.id, `Grupo de adicionais excluído: "${grupo.nome}"`); feito() }
   }
   if (editando) {
     return (
@@ -773,7 +795,7 @@ function GrupoLinha({ grupo, feito, erro }: { grupo: Grupo; feito: () => void; e
   )
 }
 
-function FormItemAdicional({ grupoId, item, feito, erro }: { grupoId: string; item?: ItemAd; feito: () => void; erro: (m: string) => void }) {
+function FormItemAdicional({ grupoId, loja, item, feito, erro }: { grupoId: string; loja: Loja; item?: ItemAd; feito: () => void; erro: (m: string) => void }) {
   const [nome, setNome] = useState(item?.nome ?? '')
   const [preco, setPreco] = useState(item ? String(item.preco).replace('.', ',') : '')
   const [permiteQtd, setPermiteQtd] = useState(item?.permite_quantidade ?? false)
@@ -788,13 +810,14 @@ function FormItemAdicional({ grupoId, item, feito, erro }: { grupoId: string; it
     const { error } = item ? await supabase.from('itens_adicionais').update(dados).eq('id', item.id) : await supabase.from('itens_adicionais').insert({ ...dados, grupo_id: grupoId })
     if (error) return erro(error.message)
     erro('')
+    registrarLog(loja.id, item ? `Item de adicional editado: "${dados.nome}"` : `Item de adicional criado: "${dados.nome}"`)
     if (!item) { setNome(''); setPreco(''); setPermiteQtd(false); setQtdMax('3'); setAtivo(true) }
     feito()
   }
   async function excluir() {
     if (!item || !confirm(`Excluir "${item.nome}"?`)) return
     const { error } = await supabase.from('itens_adicionais').delete().eq('id', item.id)
-    if (error) erro(error.message); else feito()
+    if (error) erro(error.message); else { registrarLog(loja.id, `Item de adicional excluído: "${item.nome}"`); feito() }
   }
   return (
     <form onSubmit={salvar} className="grid gap-2 rounded-lg border border-neutral-200 bg-white p-2">
@@ -890,6 +913,7 @@ function AbaLoja({ loja, salvo }: { loja: Loja; salvo: (l: Loja) => void }) {
     const { error } = await supabase.from('lojas').update(dados).eq('id', loja.id)
     if (error) return setErro(error.message)
     setErro(''); setOk(true); setLogoArquivo(null); setLogoPreview(null); setLogoUrl(logo_url); setViasImpressao(String(vias)); salvo({ ...loja, ...dados })
+    registrarLog(loja.id, 'Dados da loja atualizados')
   }
   const mostrarLogo = logoPreview || logoUrl
   return (
@@ -996,13 +1020,14 @@ function FormFormaPagamento({ loja, fp, proximaOrdem, feito, erro }: { loja: Loj
       : await supabase.from('formas_pagamento').insert({ ...dados, loja_id: loja.id, ordem: proximaOrdem ?? 1 })
     if (error) return erro(error.message)
     erro('')
+    registrarLog(loja.id, fp ? `Forma de pagamento editada: "${dados.nome}"` : `Forma de pagamento criada: "${dados.nome}"`)
     if (!fp) { setNome(''); setAceitaTroco(false) }
     feito()
   }
   async function excluir() {
     if (!fp || !confirm(`Excluir "${fp.nome}"?`)) return
     const { error } = await supabase.from('formas_pagamento').delete().eq('id', fp.id)
-    if (error) erro(error.message); else feito()
+    if (error) erro(error.message); else { registrarLog(loja.id, `Forma de pagamento excluída: "${fp.nome}"`); feito() }
   }
   return (
     <form onSubmit={salvar} className="grid grid-cols-[1fr_auto] items-center gap-2 rounded-lg border border-neutral-200 p-2">
@@ -1029,13 +1054,14 @@ function FormRedeSocial({ loja, r, usadas, proximaOrdem, feito, erro }: { loja: 
       : await supabase.from('redes_sociais').insert({ ...dados, loja_id: loja.id, ordem: proximaOrdem ?? 1 })
     if (error) return erro(error.message)
     erro('')
+    registrarLog(loja.id, r ? `Rede social editada: ${REDES.find(([id]) => id === rede)?.[1]}` : `Rede social adicionada: ${REDES.find(([id]) => id === rede)?.[1]}`)
     if (!r) setUrl('')
     feito()
   }
   async function excluir() {
     if (!r || !confirm(`Excluir o link do ${REDES.find(([id]) => id === r.rede)?.[1]}?`)) return
     const { error } = await supabase.from('redes_sociais').delete().eq('id', r.id)
-    if (error) erro(error.message); else feito()
+    if (error) erro(error.message); else { registrarLog(loja.id, `Rede social excluída: ${REDES.find(([id]) => id === r.rede)?.[1]}`); feito() }
   }
   if (!r && disponiveis.length === 0) return null
   return (
@@ -1107,13 +1133,14 @@ function FormCupom({ loja, cupom, cats, prods, proximaOrdem, feito, erro }: { lo
     }
     setSalvando(false)
     erro('')
+    registrarLog(loja.id, cupom ? `Cupom editado: "${dados.codigo}"` : `Cupom criado: "${dados.codigo}"`)
     if (!cupom) { setCodigo(''); setValor(''); setProdutosSel([]); setCategoriasSel([]); setAberto(false) }
     feito()
   }
   async function excluir() {
     if (!cupom || !confirm(`Excluir o cupom "${cupom.codigo}"?`)) return
     const { error } = await supabase.from('cupons').delete().eq('id', cupom.id)
-    if (error) erro(error.message); else feito()
+    if (error) erro(error.message); else { registrarLog(loja.id, `Cupom excluído: "${cupom.codigo}"`); feito() }
   }
   if (cupom && !aberto) {
     return (
@@ -1225,6 +1252,7 @@ function Horarios({ loja }: { loja: Loja }) {
     setOcupado(false)
     if (error) return setErro(error.message)
     setErro(''); setOk(true)
+    registrarLog(loja.id, 'Horário de funcionamento atualizado')
   }
   return (
     <form onSubmit={salvar} className="space-y-3 rounded-xl border border-neutral-200 bg-white p-3">
@@ -1249,6 +1277,33 @@ function Horarios({ loja }: { loja: Loja }) {
       {ok && <p role="status" className="rounded-lg bg-green-100 p-3 text-green-800">Horários salvos.</p>}
       <button disabled={ocupado} className={botao}>{ocupado ? 'Salvando…' : 'Salvar horários'}</button>
     </form>
+  )
+}
+
+function ExportarLog({ loja }: { loja: Loja }) {
+  const [gerando, setGerando] = useState(false)
+  const [erro, setErro] = useState('')
+  async function exportar() {
+    setGerando(true); setErro('')
+    const { data, error } = await supabase.from('logs_atividade').select('criado_em,usuario_email,acao').eq('loja_id', loja.id).order('criado_em', { ascending: false }).limit(5000)
+    setGerando(false)
+    if (error) return setErro(error.message)
+    if (!data || !data.length) return setErro('Ainda não há nenhum registro de atividade para exportar.')
+    const linhas = data.map((l: any) => `${new Date(l.criado_em).toLocaleString('pt-BR')} - ${l.usuario_email ?? 'usuário desconhecido'} - ${l.acao}`)
+    const blob = new Blob([linhas.join('\n')], { type: 'text/plain;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url; a.download = `log-${loja.slug}-${new Date().toISOString().slice(0, 10)}.txt`
+    document.body.appendChild(a); a.click(); document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  }
+  return (
+    <section className="space-y-2 rounded-xl border border-neutral-200 bg-white p-3">
+      <h3 className="font-bold">Log de atividades</h3>
+      <p className="text-sm text-neutral-600">Baixa um arquivo de texto (.txt) com tudo que foi criado, editado ou excluído no painel: produtos, categorias, adicionais, bairros, cupons, formas de pagamento, redes sociais, horários, dados da loja e pedidos. Mostra a data, a hora, quem fez e o que foi feito.</p>
+      <Erro m={erro} />
+      <button className={botao} disabled={gerando} onClick={exportar}>{gerando ? 'Gerando...' : 'Exportar log'}</button>
+    </section>
   )
 }
 
