@@ -39,6 +39,21 @@ function statusHorario(horarios: Horario[]) {
 }
 const novoId = () => (crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2))
 const NOME_REDE: Record<Rede, string> = { instagram: 'Instagram', facebook: 'Facebook', tiktok: 'TikTok', youtube: 'YouTube', twitter: 'X (Twitter)', whatsapp: 'WhatsApp', site: 'Site' }
+function IconeCompartilhar() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" />
+      <path d="M8.6 10.5l6.8-3.9M8.6 13.5l6.8 3.9" />
+    </svg>
+  )
+}
+function IconeBusca() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="11" cy="11" r="7" /><path d="M21 21l-4.3-4.3" />
+    </svg>
+  )
+}
 function IconeRede({ rede }: { rede: Rede }) {
   const props = { viewBox: '0 0 24 24', className: 'h-5 w-5', fill: 'currentColor', 'aria-hidden': true }
   switch (rede) {
@@ -78,6 +93,8 @@ export default function Cardapio() {
   const [cupomErro, setCupomErro] = useState('')
   const [aplicandoCupom, setAplicandoCupom] = useState(false)
   const [autoPreenchido, setAutoPreenchido] = useState(false)
+  const [busca, setBusca] = useState('')
+  const [buscaAberta, setBuscaAberta] = useState(false)
 
   useEffect(() => {
     ;(async () => {
@@ -206,6 +223,13 @@ export default function Cardapio() {
     }
     setProdutoModal(p)
   }
+  async function compartilhar() {
+    const url = window.location.href
+    const dados = { title: loja?.nome, url }
+    if (navigator.share) { try { await navigator.share(dados) } catch { /* usuário cancelou */ } ; return }
+    try { await navigator.clipboard.writeText(url); alert('Link do cardápio copiado! É só colar para compartilhar.') }
+    catch { prompt('Copie o link do cardápio:', url) }
+  }
   function removerLinha(id: string) { setCarrinho(c => c.filter(l => l.id !== id)) }
   function mudarQtdLinha(id: string, d: number) {
     setCarrinho(c => c.map(l => l.id === id ? { ...l, qtd: Math.max(1, l.qtd + d) } : l).filter(l => l.qtd > 0))
@@ -259,14 +283,25 @@ export default function Cardapio() {
 
   return (
     <div className="mx-auto min-h-screen max-w-2xl bg-white pb-28 text-neutral-900">
-      <header className="flex items-center gap-3 bg-black px-4 py-5">
-        {loja.logo_url && <img src={loja.logo_url} alt="" className="h-14 w-14 shrink-0 rounded-full object-cover" />}
-        <div>
-          <h1 className="text-2xl font-bold" style={{ color: cor }}>{loja.nome}</h1>
-          <p className="text-sm text-white">{podeReceberPedido ? 'Aberto agora' : 'Fechado no momento'}</p>
-          {horario.texto && <p className="text-sm text-neutral-300">{horario.texto}</p>}
-          {loja.endereco && <p className="text-sm text-neutral-300">{loja.endereco}</p>}
+      <div className="flex items-center justify-between gap-3 bg-black px-4 py-3">
+        {loja.logo_url ? <img src={loja.logo_url} alt={loja.nome} className="h-10 w-10 shrink-0 rounded-full object-cover" /> : <span />}
+        <div className="flex items-center gap-4 text-white">
+          <button type="button" aria-label="Compartilhar cardápio" onClick={compartilhar}><IconeCompartilhar /></button>
+          {etapa === 'menu' && (
+            <button type="button" aria-label="Buscar produto" onClick={() => setBuscaAberta(v => !v)}><IconeBusca /></button>
+          )}
         </div>
+      </div>
+      {buscaAberta && etapa === 'menu' && (
+        <div className="bg-black px-4 pb-3">
+          <input autoFocus className={campo} placeholder="Buscar produto pelo nome..." value={busca} onChange={e => setBusca(e.target.value)} />
+        </div>
+      )}
+      <header className="flex flex-col items-center gap-1 bg-black px-4 py-5 text-center">
+        <h1 className="text-2xl font-bold" style={{ color: cor }}>{loja.nome}</h1>
+        <p className="text-sm text-white">{podeReceberPedido ? 'Aberto agora' : 'Fechado no momento'}</p>
+        {horario.texto && <p className="text-sm text-neutral-300">{horario.texto}</p>}
+        {loja.endereco && <p className="text-sm text-neutral-300">{loja.endereco}</p>}
       </header>
 
       {etapa === 'menu' && (
@@ -276,10 +311,14 @@ export default function Cardapio() {
               A loja está fechada{horario.texto ? ` (${horario.texto.toLowerCase()})` : ''}. Você pode ver o cardápio, mas ainda não dá para pedir.
             </p>
           )}
-          {cats.map(c => (
+          {cats.map(c => {
+            const buscaLimpa = busca.trim().toLowerCase()
+            const produtosCategoria = prods.filter(p => p.categoria_id === c.id && (!buscaLimpa || p.nome.toLowerCase().includes(buscaLimpa)))
+            if (buscaLimpa && produtosCategoria.length === 0) return null
+            return (
             <section key={c.id} className="mt-6">
               <h2 className="text-xl font-bold">{c.nome}</h2>
-              {prods.filter(p => p.categoria_id === c.id).map(p => {
+              {produtosCategoria.map(p => {
                 const temAdicionais = gruposDoProduto(p.id).length > 0
                 const linhaSimples = carrinho.find(l => l.produto.id === p.id && l.selecoes.length === 0)
                 const qtdOutrasLinhas = carrinho.filter(l => l.produto.id === p.id && l.selecoes.length > 0).reduce((s, l) => s + l.qtd, 0)
@@ -303,7 +342,11 @@ export default function Cardapio() {
                 )
               })}
             </section>
-          ))}
+            )
+          })}
+          {busca.trim() && cats.every(c => prods.filter(p => p.categoria_id === c.id && p.nome.toLowerCase().includes(busca.trim().toLowerCase())).length === 0) && (
+            <p className="mt-6 text-center text-neutral-600">Nenhum produto encontrado para "{busca.trim()}".</p>
+          )}
           {qtd > 0 && (
             <div className="fixed inset-x-0 bottom-0 mx-auto max-w-2xl bg-white p-4 shadow-[0_-4px_12px_rgba(0,0,0,.15)]">
               <button onClick={() => setEtapa('checkout')} className="w-full rounded-lg bg-black py-3 font-bold" style={{ color: cor }}>Ver pedido ({qtd}) - {R(subtotal)}</button>
