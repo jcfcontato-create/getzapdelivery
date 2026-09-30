@@ -80,6 +80,8 @@ export default function Cardapio() {
   const [grupos, setGrupos] = useState<Grupo[]>([])
   const [itensAd, setItensAd] = useState<ItemAd[]>([])
   const [ligacoes, setLigacoes] = useState<Record<string, string[]>>({})
+  const [sugestoes, setSugestoes] = useState<Record<string, string[]>>({})
+  const [sugestaoAberta, setSugestaoAberta] = useState<Produto[] | null>(null)
   const [carga, setCarga] = useState(true)
   const [erro, setErro] = useState('')
   const [carrinho, setCarrinho] = useState<LinhaCarrinho[]>([])
@@ -130,6 +132,10 @@ export default function Cardapio() {
         const mapa: Record<string, string[]> = {}
         for (const row of (lg.data as any[]) ?? []) (mapa[row.produto_id] ??= []).push(row.grupo_id)
         setLigacoes(mapa)
+        const sg = await supabase.from('produto_sugestoes').select('produto_id,categoria_id').in('produto_id', prodIds)
+        const mapaSug: Record<string, string[]> = {}
+        for (const row of (sg.data as any[]) ?? []) (mapaSug[row.produto_id] ??= []).push(row.categoria_id)
+        setSugestoes(mapaSug)
       }
       setCarga(false)
     })()
@@ -219,9 +225,19 @@ export default function Cardapio() {
         if (existente) return c.map(l => l === existente ? { ...l, qtd: l.qtd + 1 } : l)
         return [...c, { id: novoId(), produto: p, qtd: 1, selecoes: [] }]
       })
+      sugerirApos(p.id)
       return
     }
     setProdutoModal(p)
+  }
+  // Depois que o cliente adiciona um produto ao carrinho, mostra produtos de outras
+  // categorias que o dono marcou como sugestão para esse produto (ex.: bebidas junto
+  // com uma pizza), se houver algum cadastrado.
+  function sugerirApos(produtoId: string) {
+    const catsSugeridas = sugestoes[produtoId] ?? []
+    if (catsSugeridas.length === 0) return
+    const sugeridos = prods.filter(x => x.id !== produtoId && catsSugeridas.includes(x.categoria_id))
+    if (sugeridos.length > 0) setSugestaoAberta(sugeridos)
   }
   async function compartilhar() {
     const url = window.location.href
@@ -444,7 +460,17 @@ export default function Cardapio() {
           adicionar={(qtdProduto, selecoes) => {
             setCarrinho(c => [...c, { id: novoId(), produto: produtoModal, qtd: qtdProduto, selecoes }])
             setProdutoModal(null)
+            sugerirApos(produtoModal.id)
           }}
+        />
+      )}
+
+      {sugestaoAberta && (
+        <ModalSugestao
+          produtos={sugestaoAberta}
+          cor={cor}
+          fechar={() => setSugestaoAberta(null)}
+          adicionar={p => { setSugestaoAberta(null); abrirProduto(p) }}
         />
       )}
 
@@ -607,6 +633,34 @@ function ModalAdicionais({ produto, grupos, itensPorGrupo, cor, fechar, adiciona
         <button onClick={confirmar} disabled={!podeAdicionar} className="mt-4 w-full rounded-lg py-3 font-bold disabled:opacity-40" style={{ background: cor, color: texto(cor) }}>
           Adicionar ao pedido - {R(totalLinha)}
         </button>
+      </div>
+    </div>
+  )
+}
+
+// Mostrada logo depois que o cliente adiciona um produto ao carrinho, sugerindo outros
+// produtos (de categorias que o dono marcou no cadastro, ex.: bebidas junto com pizza).
+function ModalSugestao({ produtos, cor, fechar, adicionar }: { produtos: Produto[]; cor: string; fechar: () => void; adicionar: (p: Produto) => void }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 sm:items-center" role="dialog" aria-modal="true">
+      <div className="max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-t-2xl bg-white p-4 sm:rounded-2xl">
+        <div className="mb-3 flex items-start justify-between gap-2">
+          <h2 className="text-lg font-bold">Que tal adicionar também?</h2>
+          <button aria-label="Fechar" onClick={fechar} className="text-2xl leading-none text-neutral-500">&times;</button>
+        </div>
+        <div className="space-y-2">
+          {produtos.map(p => (
+            <div key={p.id} className="flex items-center gap-3 rounded-lg border border-neutral-200 p-2">
+              {p.foto_url && <img src={p.foto_url} alt="" className="h-14 w-14 rounded-lg object-cover" />}
+              <div className="flex-1">
+                <p className="font-semibold">{p.nome}</p>
+                <p className="text-sm text-neutral-600">{R(p.preco)}</p>
+              </div>
+              <button type="button" onClick={() => adicionar(p)} className="rounded-lg px-3 py-2 text-sm font-bold" style={{ background: cor, color: texto(cor) }}>Adicionar</button>
+            </div>
+          ))}
+        </div>
+        <button type="button" onClick={fechar} className="mt-4 w-full rounded-lg border border-neutral-400 py-3 font-bold">Não, obrigado</button>
       </div>
     </div>
   )

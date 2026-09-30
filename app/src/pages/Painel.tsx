@@ -417,7 +417,7 @@ function AcrescentarItem({ produtos, adicionar }: { produtos: { id: string; nome
 
 const TAM_MAX_FOTO = 5 * 1024 * 1024
 
-function FormProduto({ loja, cats, grupos, gruposIniciais, p, feito, erro }: { loja: Loja; cats: Cat[]; grupos: Grupo[]; gruposIniciais?: string[]; p?: Prod; feito: () => void; erro: (m: string) => void }) {
+function FormProduto({ loja, cats, grupos, gruposIniciais, sugestoesIniciais, p, feito, erro }: { loja: Loja; cats: Cat[]; grupos: Grupo[]; gruposIniciais?: string[]; sugestoesIniciais?: string[]; p?: Prod; feito: () => void; erro: (m: string) => void }) {
   const vazio = { nome: '', descricao: '', preco: '', categoria_id: cats[0]?.id ?? '', ativo: true, foto_url: null as string | null }
   const [f, setF] = useState(p ? { nome: p.nome, descricao: p.descricao ?? '', preco: String(p.preco).replace('.', ','), categoria_id: p.categoria_id, ativo: p.ativo, foto_url: p.foto_url } : vazio)
   const [fotoArquivo, setFotoArquivo] = useState<File | null>(null)
@@ -425,8 +425,10 @@ function FormProduto({ loja, cats, grupos, gruposIniciais, p, feito, erro }: { l
   const [enviando, setEnviando] = useState(false)
   const [ok, setOk] = useState(false)
   const [gruposSel, setGruposSel] = useState<string[]>(gruposIniciais ?? [])
+  const [sugSel, setSugSel] = useState<string[]>(sugestoesIniciais ?? [])
   const set = (k: string, v: string | boolean) => setF(x => ({ ...x, [k]: v }))
   const alternarGrupo = (id: string) => setGruposSel(s => s.includes(id) ? s.filter(x => x !== id) : [...s, id])
+  const alternarSug = (id: string) => setSugSel(s => s.includes(id) ? s.filter(x => x !== id) : [...s, id])
   function escolherFoto(arquivo: File | undefined) {
     if (!arquivo) return
     if (!arquivo.type.startsWith('image/')) return erro('Escolha um arquivo de imagem (JPG, PNG ou WEBP).')
@@ -478,8 +480,19 @@ function FormProduto({ loja, cats, grupos, gruposIniciais, p, feito, erro }: { l
       const { error } = await supabase.from('produto_grupos_adicionais').insert(adicionar.map(grupo_id => ({ produto_id: produtoId, grupo_id })))
       if (error) return erro(error.message)
     }
+    const antesSug = sugestoesIniciais ?? []
+    const removerSug = antesSug.filter(id => !sugSel.includes(id))
+    const adicionarSug = sugSel.filter(id => !antesSug.includes(id))
+    if (produtoId && removerSug.length) {
+      const { error } = await supabase.from('produto_sugestoes').delete().eq('produto_id', produtoId).in('categoria_id', removerSug)
+      if (error) return erro(error.message)
+    }
+    if (produtoId && adicionarSug.length) {
+      const { error } = await supabase.from('produto_sugestoes').insert(adicionarSug.map(categoria_id => ({ produto_id: produtoId, categoria_id })))
+      if (error) return erro(error.message)
+    }
     erro(''); setOk(true)
-    if (!p) { setF(vazio); setFotoArquivo(null); setFotoPreview(null); setGruposSel([]) }
+    if (!p) { setF(vazio); setFotoArquivo(null); setFotoPreview(null); setGruposSel([]); setSugSel([]) }
     feito()
   }
   async function excluir() {
@@ -501,6 +514,10 @@ function FormProduto({ loja, cats, grupos, gruposIniciais, p, feito, erro }: { l
     if (gruposSel.length) {
       const { error: e2 } = await supabase.from('produto_grupos_adicionais').insert(gruposSel.map(grupo_id => ({ produto_id: criado.id, grupo_id })))
       if (e2) { setDuplicando(false); return erro(e2.message) }
+    }
+    if (sugSel.length) {
+      const { error: e3 } = await supabase.from('produto_sugestoes').insert(sugSel.map(categoria_id => ({ produto_id: criado.id, categoria_id })))
+      if (e3) { setDuplicando(false); return erro(e3.message) }
     }
     setDuplicando(false)
     erro('')
@@ -548,6 +565,20 @@ function FormProduto({ loja, cats, grupos, gruposIniciais, p, feito, erro }: { l
           </div>
         </div>
       )}
+      {cats.length > 0 && (
+        <div>
+          <span className="mb-1 block text-sm font-semibold">Sugerir categorias após adicionar este produto</span>
+          <p className="mb-1 text-sm text-neutral-600">Assim que o cliente adiciona este produto ao carrinho, o cardápio sugere produtos dessas categorias (ex.: sugerir "Bebidas" ao adicionar uma pizza).</p>
+          <div className="space-y-1 rounded-lg border border-neutral-200 p-2">
+            {cats.map(c => (
+              <label key={c.id} className="flex items-center gap-2 text-sm">
+                <input type="checkbox" checked={sugSel.includes(c.id)} onChange={() => alternarSug(c.id)} />
+                {c.nome}
+              </label>
+            ))}
+          </div>
+        </div>
+      )}
       {ok && <p role="status" className="rounded-lg bg-green-100 p-3 text-green-800">Dados salvos.</p>}
       <div className="flex gap-2">
         <button className={botao} disabled={enviando}>{enviando ? 'Enviando foto...' : p ? 'Salvar' : 'Adicionar produto'}</button>
@@ -563,6 +594,7 @@ function AbaCardapio({ loja }: { loja: Loja }) {
   const [prods, setProds] = useState<Prod[]>([])
   const [grupos, setGrupos] = useState<Grupo[]>([])
   const [ligacoes, setLigacoes] = useState<Record<string, string[]>>({})
+  const [sugestoes, setSugestoes] = useState<Record<string, string[]>>({})
   const [erro, setErro] = useState('')
   const [nova, setNova] = useState('')
   const [busca, setBusca] = useState('')
@@ -581,6 +613,13 @@ function AbaCardapio({ loja }: { loja: Loja }) {
       const mapa: Record<string, string[]> = {}
       for (const row of (l.data as any[]) ?? []) (mapa[row.produto_id] ??= []).push(row.grupo_id)
       setLigacoes(mapa)
+    }
+    const s = await supabase.from('produto_sugestoes').select('produto_id,categoria_id,produtos!inner(loja_id)').eq('produtos.loja_id', loja.id)
+    if (s.error) setErro(s.error.message)
+    else {
+      const mapa: Record<string, string[]> = {}
+      for (const row of (s.data as any[]) ?? []) (mapa[row.produto_id] ??= []).push(row.categoria_id)
+      setSugestoes(mapa)
     }
   }, [loja.id])
   useEffect(() => { carregar() }, [carregar])
@@ -625,7 +664,7 @@ function AbaCardapio({ loja }: { loja: Loja }) {
               qtdAtivos={prods.filter(p => p.categoria_id === c.id && p.ativo).length}
               podeSubir={i > 0} podeDescer={i < cats.length - 1} mover={d => moverCat(i, d)} feito={carregar} erro={setErro} />
             <div className="mt-2 space-y-2">
-              {produtosCategoria.map(p => <FormProduto key={p.id + p.preco + p.nome + (ligacoes[p.id]?.join(',') ?? '')} loja={loja} cats={cats} grupos={grupos} gruposIniciais={ligacoes[p.id] ?? []} p={p} feito={carregar} erro={setErro} />)}
+              {produtosCategoria.map(p => <FormProduto key={p.id + p.preco + p.nome + (ligacoes[p.id]?.join(',') ?? '') + (sugestoes[p.id]?.join(',') ?? '')} loja={loja} cats={cats} grupos={grupos} gruposIniciais={ligacoes[p.id] ?? []} sugestoesIniciais={sugestoes[p.id] ?? []} p={p} feito={carregar} erro={setErro} />)}
             </div>
           </div>
         )
