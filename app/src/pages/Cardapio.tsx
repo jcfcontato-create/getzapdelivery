@@ -81,7 +81,7 @@ export default function Cardapio() {
   const [itensAd, setItensAd] = useState<ItemAd[]>([])
   const [ligacoes, setLigacoes] = useState<Record<string, string[]>>({})
   const [sugestoes, setSugestoes] = useState<Record<string, string[]>>({})
-  const [sugestaoAberta, setSugestaoAberta] = useState<Produto[] | null>(null)
+  const [sugestaoAberta, setSugestaoAberta] = useState<{ categoria: Categoria; produtos: Produto[] }[] | null>(null)
   const [carga, setCarga] = useState(true)
   const [erro, setErro] = useState('')
   const [carrinho, setCarrinho] = useState<LinhaCarrinho[]>([])
@@ -232,12 +232,16 @@ export default function Cardapio() {
   }
   // Depois que o cliente adiciona um produto ao carrinho, mostra produtos de outras
   // categorias que o dono marcou como sugestão para esse produto (ex.: bebidas junto
-  // com uma pizza), se houver algum cadastrado.
+  // com uma pizza), se houver algum cadastrado. Cada categoria sugerida aparece em
+  // sua própria seção, nunca misturada com as outras.
   function sugerirApos(produtoId: string) {
     const catsSugeridas = sugestoes[produtoId] ?? []
     if (catsSugeridas.length === 0) return
-    const sugeridos = prods.filter(x => x.id !== produtoId && catsSugeridas.includes(x.categoria_id))
-    if (sugeridos.length > 0) setSugestaoAberta(sugeridos)
+    const secoes = cats
+      .filter(c => catsSugeridas.includes(c.id))
+      .map(c => ({ categoria: c, produtos: prods.filter(x => x.id !== produtoId && x.categoria_id === c.id) }))
+      .filter(s => s.produtos.length > 0)
+    if (secoes.length > 0) setSugestaoAberta(secoes)
   }
   async function compartilhar() {
     const url = window.location.href
@@ -467,7 +471,7 @@ export default function Cardapio() {
 
       {sugestaoAberta && (
         <ModalSugestao
-          produtos={sugestaoAberta}
+          secoes={sugestaoAberta}
           cor={cor}
           fechar={() => setSugestaoAberta(null)}
           adicionar={p => { setSugestaoAberta(null); abrirProduto(p) }}
@@ -640,7 +644,8 @@ function ModalAdicionais({ produto, grupos, itensPorGrupo, cor, fechar, adiciona
 
 // Mostrada logo depois que o cliente adiciona um produto ao carrinho, sugerindo outros
 // produtos (de categorias que o dono marcou no cadastro, ex.: bebidas junto com pizza).
-function ModalSugestao({ produtos, cor, fechar, adicionar }: { produtos: Produto[]; cor: string; fechar: () => void; adicionar: (p: Produto) => void }) {
+// Cada categoria sugerida vem em sua própria seção, nunca misturada com as outras.
+function ModalSugestao({ secoes, cor, fechar, adicionar }: { secoes: { categoria: Categoria; produtos: Produto[] }[]; cor: string; fechar: () => void; adicionar: (p: Produto) => void }) {
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 sm:items-center" role="dialog" aria-modal="true">
       <div className="max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-t-2xl bg-white p-4 sm:rounded-2xl">
@@ -648,15 +653,22 @@ function ModalSugestao({ produtos, cor, fechar, adicionar }: { produtos: Produto
           <h2 className="text-lg font-bold">Que tal adicionar também?</h2>
           <button aria-label="Fechar" onClick={fechar} className="text-2xl leading-none text-neutral-500">&times;</button>
         </div>
-        <div className="space-y-2">
-          {produtos.map(p => (
-            <div key={p.id} className="flex items-center gap-3 rounded-lg border border-neutral-200 p-2">
-              {p.foto_url && <img src={p.foto_url} alt="" className="h-14 w-14 rounded-lg object-cover" />}
-              <div className="flex-1">
-                <p className="font-semibold">{p.nome}</p>
-                <p className="text-sm text-neutral-600">{R(p.preco)}</p>
+        <div className="space-y-4">
+          {secoes.map(({ categoria, produtos }) => (
+            <div key={categoria.id}>
+              <h3 className="mb-2 font-bold">{categoria.nome}</h3>
+              <div className="space-y-2">
+                {produtos.map(p => (
+                  <div key={p.id} className="flex items-center gap-3 rounded-lg border border-neutral-200 p-2">
+                    {p.foto_url && <img src={p.foto_url} alt="" className="h-14 w-14 rounded-lg object-cover" />}
+                    <div className="flex-1">
+                      <p className="font-semibold">{p.nome}</p>
+                      <p className="text-sm text-neutral-600">{R(p.preco)}</p>
+                    </div>
+                    <button type="button" onClick={() => adicionar(p)} className="rounded-lg px-3 py-2 text-sm font-bold" style={{ background: cor, color: texto(cor) }}>Adicionar</button>
+                  </div>
+                ))}
               </div>
-              <button type="button" onClick={() => adicionar(p)} className="rounded-lg px-3 py-2 text-sm font-bold" style={{ background: cor, color: texto(cor) }}>Adicionar</button>
             </div>
           ))}
         </div>
