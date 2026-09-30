@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase'
 
 type Loja = { id: string; slug: string; nome: string; whatsapp: string; aberta: boolean; aceita_retirada: boolean; endereco: string | null; impressora: string | null; logo_url: string | null; email: string | null; cpf_cnpj: string | null; imprime_via_cozinha: boolean; vias_impressao: number; plataforma_ativa: boolean }
 type ItemAdEscolhido = { nome: string; qtd: number; preco_unit: number }
-type Item = { nome: string; qtd: number; preco_unit: number; itens_pedido_adicionais: ItemAdEscolhido[] }
+type Item = { id: string; nome: string; qtd: number; preco_unit: number; itens_pedido_adicionais: ItemAdEscolhido[] }
 type Pedido = { id: string; numero: number; status: string; cliente_nome: string; cliente_telefone: string; tipo: string; bairro: string | null; endereco: string | null; pagamento: string; troco_para: string | null; observacao: string | null; subtotal: number; taxa_entrega: number; desconto: number; cupom_codigo: string | null; total: number; criado_em: string; itens_pedido: Item[] }
 type Cat = { id: string; nome: string; ordem: number }
 type Prod = { id: string; categoria_id: string; nome: string; descricao: string | null; preco: number; ativo: boolean; foto_url: string | null }
@@ -104,7 +104,7 @@ function imprimirConformeConfig(p: Pedido, loja: Loja, atraso = 0): number {
   if (loja.imprime_via_cozinha) setTimeout(() => imprimirPedido(p, loja, `COZINHA #${p.numero}`, true), atraso + vias * 1200)
   return (vias + (loja.imprime_via_cozinha ? 1 : 0)) * 1200
 }
-const pedidoTeste: Pedido = { id: 'teste', numero: 0, status: 'novo', cliente_nome: 'Cliente de teste', cliente_telefone: '(00) 00000-0000', tipo: 'entrega', bairro: 'Centro', endereco: 'Rua Exemplo, 1', pagamento: 'pix', troco_para: null, observacao: 'Se este papel saiu, a impressão está funcionando.', subtotal: 10, taxa_entrega: 5, desconto: 0, cupom_codigo: null, total: 15, criado_em: new Date().toISOString(), itens_pedido: [{ nome: 'Produto de teste', qtd: 1, preco_unit: 10, itens_pedido_adicionais: [] }] }
+const pedidoTeste: Pedido = { id: 'teste', numero: 0, status: 'novo', cliente_nome: 'Cliente de teste', cliente_telefone: '(00) 00000-0000', tipo: 'entrega', bairro: 'Centro', endereco: 'Rua Exemplo, 1', pagamento: 'pix', troco_para: null, observacao: 'Se este papel saiu, a impressão está funcionando.', subtotal: 10, taxa_entrega: 5, desconto: 0, cupom_codigo: null, total: 15, criado_em: new Date().toISOString(), itens_pedido: [{ id: 'teste', nome: 'Produto de teste', qtd: 1, preco_unit: 10, itens_pedido_adicionais: [] }] }
 const Erro = ({ m }: { m: string }) => (m ? <p role="alert" className="my-2 rounded-lg bg-red-100 p-3 text-red-800">{m}</p> : null)
 
 export default function Painel() {
@@ -295,11 +295,32 @@ function Pedidos({ loja, versao, impAuto, alternarImp }: { loja: Loja; versao: n
   const [lista, setLista] = useState<Pedido[]>([])
   const [ver, setVer] = useState<'andamento' | 'finalizados'>('andamento')
   const [erro, setErro] = useState('')
+  const [produtos, setProdutos] = useState<{ id: string; nome: string; preco: number }[]>([])
   const carregar = useCallback(async () => {
-    const { data, error } = await supabase.from('pedidos').select('*, itens_pedido(nome,qtd,preco_unit,itens_pedido_adicionais(nome,qtd,preco_unit))').eq('loja_id', loja.id).order('criado_em', { ascending: false }).limit(60)
+    const { data, error } = await supabase.from('pedidos').select('*, itens_pedido(id,nome,qtd,preco_unit,itens_pedido_adicionais(nome,qtd,preco_unit))').eq('loja_id', loja.id).order('criado_em', { ascending: false }).limit(60)
     if (error) setErro(error.message); else { setErro(''); setLista(data as Pedido[]) }
   }, [loja.id])
   useEffect(() => { carregar(); const t = setInterval(carregar, 15000); return () => clearInterval(t) }, [carregar, versao])
+  useEffect(() => {
+    supabase.from('produtos').select('id,nome,preco').eq('loja_id', loja.id).eq('ativo', true).order('nome').then(({ data }) => setProdutos(data ?? []))
+  }, [loja.id])
+  async function adicionarItem(p: Pedido, produtoId: string, qtd: number) {
+    const { error } = await supabase.rpc('pedido_adicionar_item', { p_pedido_id: p.id, p_produto_id: produtoId, p_qtd: qtd })
+    if (error) { setErro(error.message); return false }
+    setErro('')
+    const nomeProd = produtos.find(x => x.id === produtoId)?.nome ?? ''
+    registrarLog(loja.id, `Item acrescentado ao pedido #${p.numero}: ${qtd}x ${nomeProd}`)
+    carregar()
+    return true
+  }
+  async function removerItem(p: Pedido, item: Item) {
+    if (!confirm(`Remover "${item.qtd}x ${item.nome}" do pedido #${p.numero}?`)) return
+    const { error } = await supabase.rpc('pedido_remover_item', { p_item_id: item.id })
+    if (error) { setErro(error.message); return }
+    setErro('')
+    registrarLog(loja.id, `Item removido do pedido #${p.numero}: ${item.qtd}x ${item.nome}`)
+    carregar()
+  }
   async function mover(p: Pedido, status: string) {
     const { error } = await supabase.from('pedidos').update({ status }).eq('id', p.id)
     if (error) setErro(error.message); else { carregar(); registrarLog(loja.id, `Pedido #${p.numero} alterado para "${STATUS[status] ?? status}"`) }
@@ -335,20 +356,25 @@ function Pedidos({ loja, versao, impAuto, alternarImp }: { loja: Loja; versao: n
               </div>
               <p className="text-sm font-semibold">{STATUS[p.status]}</p>
               <p className="text-sm text-neutral-600">{p.tipo === 'entrega' ? `Entrega: ${p.endereco}, ${p.bairro}` : 'Retirada na loja'}</p>
+              {(() => { const editavel = !['entregue', 'cancelado'].includes(p.status); return (<>
               <ul className="my-2">{p.itens_pedido.map((i, k) => (
-                <li key={k}>
-                  {i.qtd}x {i.nome}
-                  {i.itens_pedido_adicionais?.length > 0 && (
-                    <ul className="pl-4 text-sm text-neutral-600">
-                      {i.itens_pedido_adicionais.map((a, j) => <li key={j}>+ {a.qtd}x {a.nome}</li>)}
-                    </ul>
-                  )}
+                <li key={k} className="flex items-start justify-between gap-2">
+                  <span>
+                    {i.qtd}x {i.nome}
+                    {i.itens_pedido_adicionais?.length > 0 && (
+                      <ul className="pl-4 text-sm text-neutral-600">
+                        {i.itens_pedido_adicionais.map((a, j) => <li key={j}>+ {a.qtd}x {a.nome}</li>)}
+                      </ul>
+                    )}
+                  </span>
+                  {editavel && <button type="button" aria-label={`Remover ${i.nome}`} className="shrink-0 text-sm text-red-700 underline" onClick={() => removerItem(p, i)}>remover</button>}
                 </li>
               ))}</ul>
               <p>Pagamento: {PAG[p.pagamento] ?? p.pagamento}{p.troco_para ? ` (troco para ${p.troco_para})` : ''}</p>
               {p.observacao && <p>Obs: {p.observacao}</p>}
               {p.desconto > 0 && <p className="text-sm text-neutral-600">Cupom{p.cupom_codigo ? ` ${p.cupom_codigo}` : ''}: -{R(p.desconto)}</p>}
               <p className="font-bold">Total {R(p.total)}</p>
+              {editavel && <div className="mt-2"><AcrescentarItem produtos={produtos} adicionar={(produtoId, qtd) => adicionarItem(p, produtoId, qtd)} /></div>}
               <div className="mt-3 flex flex-wrap gap-2">
                 {prox && <button className={botao} onClick={() => mover(p, prox)}>{ROTULO[prox]}</button>}
                 <a className={claro} href={`https://wa.me/55${p.cliente_telefone.replace(/\D/g, '')}`} target="_blank" rel="noreferrer">WhatsApp do cliente</a>
@@ -356,11 +382,36 @@ function Pedidos({ loja, versao, impAuto, alternarImp }: { loja: Loja; versao: n
                 <button className={claro} onClick={() => imprimirConformeConfig(p, loja)}>Imprimir</button>
                 <button className={claro} onClick={() => excluirPedido(p)}>Excluir</button>
               </div>
+              </>) })()}
             </article>
           )
         })}
       </div>
     </section>
+  )
+}
+
+function AcrescentarItem({ produtos, adicionar }: { produtos: { id: string; nome: string; preco: number }[]; adicionar: (produtoId: string, qtd: number) => Promise<boolean> }) {
+  const [aberto, setAberto] = useState(false)
+  const [produtoId, setProdutoId] = useState('')
+  const [qtd, setQtd] = useState('1')
+  const [ocupado, setOcupado] = useState(false)
+  if (produtos.length === 0) return null
+  if (!aberto) return <button type="button" className={claro} onClick={() => { setAberto(true); setProdutoId(produtos[0].id) }}>+ Acrescentar item</button>
+  return (
+    <div className="flex flex-wrap items-center gap-2 rounded-lg border border-neutral-200 bg-neutral-50 p-2">
+      <select className={campo + ' flex-1'} value={produtoId} onChange={e => setProdutoId(e.target.value)}>
+        {produtos.map(pr => <option key={pr.id} value={pr.id}>{pr.nome} - {R(pr.preco)}</option>)}
+      </select>
+      <input type="number" min={1} className={campo + ' w-20'} value={qtd} onChange={e => setQtd(e.target.value.replace(/\D/g, ''))} />
+      <button type="button" className={botao} disabled={ocupado} onClick={async () => {
+        setOcupado(true)
+        const ok = await adicionar(produtoId, Math.max(1, parseInt(qtd, 10) || 1))
+        setOcupado(false)
+        if (ok) { setAberto(false); setQtd('1') }
+      }}>{ocupado ? 'Adicionando...' : 'Adicionar'}</button>
+      <button type="button" className={claro} onClick={() => setAberto(false)}>Cancelar</button>
+    </div>
   )
 }
 
