@@ -158,7 +158,18 @@ function FormNovaLoja({ onCriada }: { onCriada: () => void }) {
       body: { nome, slug, whatsapp, email, senha },
     })
     setEnviando(false)
-    if (error || data?.erro) { setErro(data?.erro ?? error?.message ?? 'Não foi possível criar a loja.'); return }
+    if (error || data?.erro) {
+      // Quando a função responde com erro (4xx), o supabase-js só traz uma mensagem
+      // genérica em "error.message" ("Edge Function returned a non-2xx status code"):
+      // o motivo de verdade (ex.: "já existe uma loja com esse endereço") vem no corpo
+      // da resposta, acessível via error.context. Tenta ler de lá antes de desistir.
+      let motivo = data?.erro as string | undefined
+      if (!motivo && error && 'context' in error) {
+        try { motivo = (await (error as any).context.json())?.erro } catch { /* resposta sem JSON */ }
+      }
+      setErro(motivo ?? error?.message ?? 'Não foi possível criar a loja.')
+      return
+    }
     setOk(`Loja "${nome}" criada! Cardápio em /${data.slug} — o dono entra em /painel com o e-mail e a senha cadastrados aqui.`)
     setNome(''); setSlug(''); setSlugEditado(false); setWhatsapp(''); setEmail(''); setSenha('')
     onCriada()
