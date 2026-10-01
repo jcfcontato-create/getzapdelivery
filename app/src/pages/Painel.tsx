@@ -1,7 +1,7 @@
 import { type FormEvent, useCallback, useEffect, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
 
-type Loja = { id: string; slug: string; nome: string; whatsapp: string; aberta: boolean; aceita_retirada: boolean; endereco: string | null; impressora: string | null; logo_url: string | null; email: string | null; cpf_cnpj: string | null; imprime_via_cozinha: boolean; vias_impressao: number; plataforma_ativa: boolean }
+type Loja = { id: string; slug: string; nome: string; whatsapp: string; aberta: boolean; aceita_retirada: boolean; endereco: string | null; impressora: string | null; logo_url: string | null; email: string | null; cpf_cnpj: string | null; imprime_via_cozinha: boolean; vias_impressao: number; plataforma_ativa: boolean; cor: string }
 type ItemAdEscolhido = { nome: string; qtd: number; preco_unit: number }
 type Item = { id: string; nome: string; qtd: number; preco_unit: number; itens_pedido_adicionais: ItemAdEscolhido[] }
 type Pedido = { id: string; numero: number; status: string; cliente_nome: string; cliente_telefone: string; tipo: string; bairro: string | null; endereco: string | null; pagamento: string; troco_para: string | null; observacao: string | null; subtotal: number; taxa_entrega: number; desconto: number; cupom_codigo: string | null; total: number; criado_em: string; itens_pedido: Item[] }
@@ -227,7 +227,7 @@ function Area() {
   useEffect(() => {
     ;(async () => {
       const { data: s } = await supabase.auth.getSession()
-      const { data, error } = await supabase.from('membros').select('lojas(id,slug,nome,whatsapp,aberta,aceita_retirada,endereco,impressora,logo_url,email,cpf_cnpj,imprime_via_cozinha,vias_impressao,plataforma_ativa)').eq('user_id', s.session?.user.id).limit(1)
+      const { data, error } = await supabase.from('membros').select('lojas(id,slug,nome,whatsapp,aberta,aceita_retirada,endereco,impressora,logo_url,email,cpf_cnpj,imprime_via_cozinha,vias_impressao,plataforma_ativa,cor)').eq('user_id', s.session?.user.id).limit(1)
       if (error) setMsg(error.message)
       else if (!data || !data.length) setMsg('Este usuário ainda não está vinculado a uma loja. Fale com o suporte do GetZap.')
       else setLoja((data[0] as any).lojas)
@@ -940,6 +940,7 @@ function AbaLoja({ loja, salvo }: { loja: Loja; salvo: (l: Loja) => void }) {
   const [email, setEmail] = useState(loja.email ?? '')
   const [cpfCnpj, setCpfCnpj] = useState(loja.cpf_cnpj ?? '')
   const [logoUrl, setLogoUrl] = useState(loja.logo_url)
+  const [cor, setCor] = useState(loja.cor)
   const [logoArquivo, setLogoArquivo] = useState<File | null>(null)
   const [logoPreview, setLogoPreview] = useState<string | null>(null)
   const [enviandoLogo, setEnviandoLogo] = useState(false)
@@ -988,6 +989,7 @@ function AbaLoja({ loja, salvo }: { loja: Loja; salvo: (l: Loja) => void }) {
   async function salvar(e: FormEvent) {
     e.preventDefault(); setOk(false)
     if (!/^[0-9]{12,13}$/.test(whatsapp)) return setErro('WhatsApp: use só números, com 55 e o DDD. Exemplo: 5511940104824.')
+    if (!/^#[0-9a-fA-F]{6}$/.test(cor)) return setErro('Cor do tema: use um código no formato #RRGGBB, por exemplo #7C4CAF.')
     let logo_url = logoUrl
     if (logoArquivo) {
       setEnviandoLogo(true)
@@ -999,7 +1001,7 @@ function AbaLoja({ loja, salvo }: { loja: Loja; salvo: (l: Loja) => void }) {
       logo_url = supabase.storage.from('produtos').getPublicUrl(caminho).data.publicUrl
     }
     const vias = Math.min(5, Math.max(1, Number(viasImpressao) || 1))
-    const dados = { whatsapp, endereco: endereco.trim() || null, aceita_retirada: retirada, impressora: impressora.trim() || null, logo_url, email: email.trim() || null, cpf_cnpj: cpfCnpj.trim() || null, imprime_via_cozinha: imprimeViaCozinha, vias_impressao: vias }
+    const dados = { whatsapp, endereco: endereco.trim() || null, aceita_retirada: retirada, impressora: impressora.trim() || null, logo_url, email: email.trim() || null, cpf_cnpj: cpfCnpj.trim() || null, imprime_via_cozinha: imprimeViaCozinha, vias_impressao: vias, cor }
     const { error } = await supabase.from('lojas').update(dados).eq('id', loja.id)
     if (error) return setErro(error.message)
     setErro(''); setOk(true); setLogoArquivo(null); setLogoPreview(null); setLogoUrl(logo_url); setViasImpressao(String(vias)); salvo({ ...loja, ...dados })
@@ -1026,6 +1028,26 @@ function AbaLoja({ loja, salvo }: { loja: Loja; salvo: (l: Loja) => void }) {
             {mostrarLogo && <button type="button" className="text-sm text-neutral-600 underline" onClick={removerLogo}>Remover logo</button>}
             {enviandoLogo && <span className="text-sm text-neutral-500">Enviando...</span>}
           </div>
+        </div>
+      </div>
+      <div>
+        <span className="mb-1 block font-semibold">Cor do tema da loja</span>
+        <p className="mb-2 text-sm text-neutral-600">Usada nos botões e destaques do cardápio que o cliente vê.</p>
+        <div className="flex items-center gap-3">
+          <input
+            type="color"
+            value={/^#[0-9a-fA-F]{6}$/.test(cor) ? cor : '#C9A24B'}
+            onChange={e => setCor(e.target.value)}
+            className="h-10 w-14 cursor-pointer rounded border border-neutral-300 p-0"
+            aria-label="Selecionar cor do tema"
+          />
+          <input
+            className={`${campo} w-32`}
+            value={cor}
+            onChange={e => setCor(e.target.value)}
+            placeholder="#7C4CAF"
+            maxLength={7}
+          />
         </div>
       </div>
       <label className="block"><span className="font-semibold">WhatsApp que recebe os pedidos</span>
