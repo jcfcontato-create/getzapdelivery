@@ -6,7 +6,7 @@ type ItemAdEscolhido = { nome: string; qtd: number; preco_unit: number }
 type Item = { id: string; nome: string; qtd: number; preco_unit: number; itens_pedido_adicionais: ItemAdEscolhido[] }
 type Pedido = { id: string; numero: number; status: string; cliente_nome: string; cliente_telefone: string; tipo: string; bairro: string | null; endereco: string | null; pagamento: string; troco_para: string | null; observacao: string | null; subtotal: number; taxa_entrega: number; desconto: number; cupom_codigo: string | null; total: number; criado_em: string; itens_pedido: Item[] }
 type Cat = { id: string; nome: string; ordem: number }
-type Prod = { id: string; categoria_id: string; nome: string; descricao: string | null; preco: number; ativo: boolean; foto_url: string | null }
+type Prod = { id: string; categoria_id: string; nome: string; descricao: string | null; preco: number; ativo: boolean; foto_url: string | null; dias_semana: number[] | null }
 type Zona = { id: string; bairro: string; taxa: number }
 type Grupo = { id: string; nome: string; tipo: 'unica' | 'multipla'; obrigatorio: boolean; maximo: number | null }
 type ItemAd = { id: string; grupo_id: string; nome: string; preco: number; permite_quantidade: boolean; quantidade_maxima: number; ativo: boolean }
@@ -417,7 +417,7 @@ function AcrescentarItem({ produtos, adicionar }: { produtos: { id: string; nome
 
 const TAM_MAX_FOTO = 5 * 1024 * 1024
 
-function FormProduto({ loja, cats, grupos, gruposIniciais, sugestoesIniciais, p, feito, erro }: { loja: Loja; cats: Cat[]; grupos: Grupo[]; gruposIniciais?: string[]; sugestoesIniciais?: string[]; p?: Prod; feito: () => void; erro: (m: string) => void }) {
+function FormProduto({ loja, cats, grupos, gruposIniciais, sugestoesIniciais, diasHabilitados, p, feito, erro }: { loja: Loja; cats: Cat[]; grupos: Grupo[]; gruposIniciais?: string[]; sugestoesIniciais?: string[]; diasHabilitados: number[]; p?: Prod; feito: () => void; erro: (m: string) => void }) {
   const vazio = { nome: '', descricao: '', preco: '', categoria_id: cats[0]?.id ?? '', ativo: true, foto_url: null as string | null }
   const [f, setF] = useState(p ? { nome: p.nome, descricao: p.descricao ?? '', preco: String(p.preco).replace('.', ','), categoria_id: p.categoria_id, ativo: p.ativo, foto_url: p.foto_url } : vazio)
   const [fotoArquivo, setFotoArquivo] = useState<File | null>(null)
@@ -426,9 +426,11 @@ function FormProduto({ loja, cats, grupos, gruposIniciais, sugestoesIniciais, p,
   const [ok, setOk] = useState(false)
   const [gruposSel, setGruposSel] = useState<string[]>(gruposIniciais ?? [])
   const [sugSel, setSugSel] = useState<string[]>(sugestoesIniciais ?? [])
+  const [diasSel, setDiasSel] = useState<number[]>(p?.dias_semana ?? [])
   const set = (k: string, v: string | boolean) => setF(x => ({ ...x, [k]: v }))
   const alternarGrupo = (id: string) => setGruposSel(s => s.includes(id) ? s.filter(x => x !== id) : [...s, id])
   const alternarSug = (id: string) => setSugSel(s => s.includes(id) ? s.filter(x => x !== id) : [...s, id])
+  const alternarDia = (dia: number) => setDiasSel(s => s.includes(dia) ? s.filter(x => x !== dia) : [...s, dia])
   function escolherFoto(arquivo: File | undefined) {
     if (!arquivo) return
     if (!arquivo.type.startsWith('image/')) return erro('Escolha um arquivo de imagem (JPG, PNG ou WEBP).')
@@ -457,7 +459,7 @@ function FormProduto({ loja, cats, grupos, gruposIniciais, sugestoesIniciais, p,
       if (erroEnvio) return erro('Não foi possível enviar a foto: ' + erroEnvio.message)
       foto_url = supabase.storage.from('produtos').getPublicUrl(caminho).data.publicUrl
     }
-    const dados = { nome: f.nome.trim(), descricao: f.descricao.trim() || null, preco, categoria_id: f.categoria_id, ativo: f.ativo, foto_url }
+    const dados = { nome: f.nome.trim(), descricao: f.descricao.trim() || null, preco, categoria_id: f.categoria_id, ativo: f.ativo, foto_url, dias_semana: diasSel.length ? diasSel : null }
     let produtoId = p?.id
     if (p) {
       const { error } = await supabase.from('produtos').update(dados).eq('id', p.id)
@@ -492,7 +494,7 @@ function FormProduto({ loja, cats, grupos, gruposIniciais, sugestoesIniciais, p,
       if (error) return erro(error.message)
     }
     erro(''); setOk(true)
-    if (!p) { setF(vazio); setFotoArquivo(null); setFotoPreview(null); setGruposSel([]); setSugSel([]) }
+    if (!p) { setF(vazio); setFotoArquivo(null); setFotoPreview(null); setGruposSel([]); setSugSel([]); setDiasSel([]) }
     feito()
   }
   async function excluir() {
@@ -508,7 +510,7 @@ function FormProduto({ loja, cats, grupos, gruposIniciais, sugestoesIniciais, p,
   async function duplicar() {
     if (!p) return
     setDuplicando(true)
-    const dados = { nome: `${p.nome} (cópia)`, descricao: p.descricao, preco: p.preco, categoria_id: p.categoria_id, ativo: p.ativo, foto_url: p.foto_url }
+    const dados = { nome: `${p.nome} (cópia)`, descricao: p.descricao, preco: p.preco, categoria_id: p.categoria_id, ativo: p.ativo, foto_url: p.foto_url, dias_semana: diasSel.length ? diasSel : null }
     const { data: criado, error } = await supabase.from('produtos').insert({ ...dados, loja_id: loja.id }).select('id').single()
     if (error) { setDuplicando(false); return erro(error.message) }
     if (gruposSel.length) {
@@ -552,6 +554,18 @@ function FormProduto({ loja, cats, grupos, gruposIniciais, sugestoesIniciais, p,
         </div>
       </div>
       <label className="flex items-center gap-2"><input type="checkbox" checked={f.ativo} onChange={e => set('ativo', e.target.checked)} /> Disponível no cardápio</label>
+      <div>
+        <span className="mb-1 block text-sm font-semibold">Dias da semana em que este produto é vendido</span>
+        <p className="mb-1 text-sm text-neutral-600">Deixe tudo desmarcado para vender todos os dias. Marque só os dias em que esse prato específico fica disponível (ex.: feijoada só no sábado).</p>
+        <div className="flex flex-wrap gap-2 rounded-lg border border-neutral-200 p-2">
+          {diasHabilitados.map(dia => (
+            <label key={dia} className="flex items-center gap-1 text-sm">
+              <input type="checkbox" checked={diasSel.includes(dia)} onChange={() => alternarDia(dia)} />
+              {DIAS[dia]}
+            </label>
+          ))}
+        </div>
+      </div>
       {grupos.length > 0 && (
         <div>
           <span className="mb-1 block text-sm font-semibold">Adicionais deste produto</span>
@@ -595,18 +609,22 @@ function AbaCardapio({ loja }: { loja: Loja }) {
   const [grupos, setGrupos] = useState<Grupo[]>([])
   const [ligacoes, setLigacoes] = useState<Record<string, string[]>>({})
   const [sugestoes, setSugestoes] = useState<Record<string, string[]>>({})
+  const [diasHabilitados, setDiasHabilitados] = useState<number[]>([0, 1, 2, 3, 4, 5, 6])
   const [erro, setErro] = useState('')
   const [nova, setNova] = useState('')
   const [busca, setBusca] = useState('')
   const carregar = useCallback(async () => {
-    const [c, p, g] = await Promise.all([
+    const [c, p, g, h] = await Promise.all([
       supabase.from('categorias').select('id,nome,ordem').eq('loja_id', loja.id).order('ordem'),
-      supabase.from('produtos').select('id,categoria_id,nome,descricao,preco,ativo,foto_url').eq('loja_id', loja.id).order('ordem').order('nome'),
+      supabase.from('produtos').select('id,categoria_id,nome,descricao,preco,ativo,foto_url,dias_semana').eq('loja_id', loja.id).order('ordem').order('nome'),
       supabase.from('grupos_adicionais').select('id,nome,tipo,obrigatorio,maximo').eq('loja_id', loja.id).order('ordem'),
+      supabase.from('horarios_funcionamento').select('dia_semana,fechado').eq('loja_id', loja.id),
     ])
-    const e = c.error || p.error || g.error
+    const e = c.error || p.error || g.error || h.error
     if (e) setErro(e.message)
     setCats(c.data ?? []); setProds((p.data as Prod[]) ?? []); setGrupos((g.data as Grupo[]) ?? [])
+    const fechados = new Set((h.data ?? []).filter((d: any) => d.fechado).map((d: any) => d.dia_semana))
+    setDiasHabilitados([0, 1, 2, 3, 4, 5, 6].filter(d => !fechados.has(d)))
     const l = await supabase.from('produto_grupos_adicionais').select('produto_id,grupo_id,produtos!inner(loja_id)').eq('produtos.loja_id', loja.id)
     if (l.error) setErro(l.error.message)
     else {
@@ -651,7 +669,7 @@ function AbaCardapio({ loja }: { loja: Loja }) {
       {cats.length === 0 ? <p className="rounded-xl bg-white p-4">Crie uma categoria para começar a cadastrar produtos.</p> : (
         <details className="rounded-xl bg-neutral-100 p-3">
           <summary className="cursor-pointer font-bold">Novo produto</summary>
-          <div className="mt-3"><FormProduto loja={loja} cats={cats} grupos={grupos} feito={carregar} erro={setErro} /></div>
+          <div className="mt-3"><FormProduto loja={loja} cats={cats} grupos={grupos} diasHabilitados={diasHabilitados} feito={carregar} erro={setErro} /></div>
         </details>
       )}
       {cats.map((c, i) => {
@@ -664,7 +682,7 @@ function AbaCardapio({ loja }: { loja: Loja }) {
               qtdAtivos={prods.filter(p => p.categoria_id === c.id && p.ativo).length}
               podeSubir={i > 0} podeDescer={i < cats.length - 1} mover={d => moverCat(i, d)} feito={carregar} erro={setErro} />
             <div className="mt-2 space-y-2">
-              {produtosCategoria.map(p => <FormProduto key={p.id + p.preco + p.nome + (ligacoes[p.id]?.join(',') ?? '') + (sugestoes[p.id]?.join(',') ?? '')} loja={loja} cats={cats} grupos={grupos} gruposIniciais={ligacoes[p.id] ?? []} sugestoesIniciais={sugestoes[p.id] ?? []} p={p} feito={carregar} erro={setErro} />)}
+              {produtosCategoria.map(p => <FormProduto key={p.id + p.preco + p.nome + (ligacoes[p.id]?.join(',') ?? '') + (sugestoes[p.id]?.join(',') ?? '') + (p.dias_semana?.join(',') ?? '')} loja={loja} cats={cats} grupos={grupos} gruposIniciais={ligacoes[p.id] ?? []} sugestoesIniciais={sugestoes[p.id] ?? []} diasHabilitados={diasHabilitados} p={p} feito={carregar} erro={setErro} />)}
             </div>
           </div>
         )
@@ -964,7 +982,7 @@ function AbaLoja({ loja, salvo }: { loja: Loja; salvo: (l: Loja) => void }) {
   const [prods, setProds] = useState<Prod[]>([])
   useEffect(() => {
     supabase.from('categorias').select('id,nome,ordem').eq('loja_id', loja.id).order('ordem').then(({ data }) => setCats((data as Cat[]) ?? []))
-    supabase.from('produtos').select('id,categoria_id,nome,descricao,preco,ativo,foto_url').eq('loja_id', loja.id).order('ordem').then(({ data }) => setProds((data as Prod[]) ?? []))
+    supabase.from('produtos').select('id,categoria_id,nome,descricao,preco,ativo,foto_url,dias_semana').eq('loja_id', loja.id).order('ordem').then(({ data }) => setProds((data as Prod[]) ?? []))
   }, [loja.id])
   const [cupons, setCupons] = useState<Cupom[]>([])
   const [erroCupons, setErroCupons] = useState('')
