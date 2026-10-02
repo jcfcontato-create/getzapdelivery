@@ -1,7 +1,7 @@
 import { type FormEvent, useCallback, useEffect, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
 
-type Loja = { id: string; slug: string; nome: string; whatsapp: string; aberta: boolean; aceita_retirada: boolean; endereco: string | null; impressora: string | null; logo_url: string | null; banner_celular_url: string | null; banner_pc_url: string | null; email: string | null; cpf_cnpj: string | null; imprime_via_cozinha: boolean; vias_impressao: number; plataforma_ativa: boolean; cor: string }
+type Loja = { id: string; slug: string; nome: string; whatsapp: string; aberta: boolean; aceita_retirada: boolean; endereco: string | null; impressora: string | null; logo_url: string | null; email: string | null; cpf_cnpj: string | null; imprime_via_cozinha: boolean; vias_impressao: number; plataforma_ativa: boolean; cor: string }
 type ItemAdEscolhido = { nome: string; qtd: number; preco_unit: number }
 type Item = { id: string; nome: string; qtd: number; preco_unit: number; itens_pedido_adicionais: ItemAdEscolhido[] }
 type Pedido = { id: string; numero: number; status: string; cliente_nome: string; cliente_telefone: string; tipo: string; bairro: string | null; endereco: string | null; pagamento: string; troco_para: string | null; observacao: string | null; subtotal: number; taxa_entrega: number; desconto: number; cupom_codigo: string | null; total: number; criado_em: string; itens_pedido: Item[] }
@@ -136,9 +136,8 @@ function Login() {
   }
   return (
     <main className="mx-auto max-w-sm px-4 py-16">
-      <img src="/logo-getzapdelivery.jpg" alt="GetZap Delivery" className="mx-auto mb-4 w-48" />
-      <h1 className="mb-2 text-center text-2xl font-bold text-[#1B2A4A]">GetZap Delivery</h1>
-      <p className="mb-6 text-center">Entre para gerenciar a sua loja.</p>
+      <h1 className="mb-2 text-2xl font-bold text-[#1B2A4A]">GetZap Delivery</h1>
+      <p className="mb-6">Entre para gerenciar a sua loja.</p>
       <form onSubmit={entrar} className="space-y-3">
         <input required type="email" autoComplete="username" className={campo} placeholder="E-mail" value={email} onChange={e => setEmail(e.target.value)} />
         <input required type="password" autoComplete="current-password" className={campo} placeholder="Senha" value={senha} onChange={e => setSenha(e.target.value)} />
@@ -228,7 +227,7 @@ function Area() {
   useEffect(() => {
     ;(async () => {
       const { data: s } = await supabase.auth.getSession()
-      const { data, error } = await supabase.from('membros').select('lojas(id,slug,nome,whatsapp,aberta,aceita_retirada,endereco,impressora,logo_url,banner_celular_url,banner_pc_url,email,cpf_cnpj,imprime_via_cozinha,vias_impressao,plataforma_ativa,cor)').eq('user_id', s.session?.user.id).limit(1)
+      const { data, error } = await supabase.from('membros').select('lojas(id,slug,nome,whatsapp,aberta,aceita_retirada,endereco,impressora,logo_url,email,cpf_cnpj,imprime_via_cozinha,vias_impressao,plataforma_ativa,cor)').eq('user_id', s.session?.user.id).limit(1)
       if (error) setMsg(error.message)
       else if (!data || !data.length) setMsg('Este usuário ainda não está vinculado a uma loja. Fale com o suporte do GetZap.')
       else setLoja((data[0] as any).lojas)
@@ -800,7 +799,6 @@ function AbaAdicionais({ loja }: { loja: Loja }) {
   const [tipo, setTipo] = useState<'unica' | 'multipla'>('unica')
   const [obrigatorio, setObrigatorio] = useState(false)
   const [maximo, setMaximo] = useState('')
-  const [busca, setBusca] = useState('')
   const carregar = useCallback(async () => {
     const [g, i] = await Promise.all([
       supabase.from('grupos_adicionais').select('id,nome,tipo,obrigatorio,maximo').eq('loja_id', loja.id).order('ordem'),
@@ -824,7 +822,6 @@ function AbaAdicionais({ loja }: { loja: Loja }) {
     <section className="space-y-4">
       <p className="text-sm text-neutral-600">Cadastre aqui os adicionais (ex.: "Escolha o sabor", "Adicionais extras"). Depois, na aba Cardápio, marque em cada produto quais adicionais ele usa.</p>
       <Erro m={erro} />
-      <input className={campo} placeholder="Buscar adicional pelo nome..." value={busca} onChange={e => setBusca(e.target.value)} />
       <form onSubmit={criarGrupo} className="grid gap-2 rounded-xl border border-neutral-200 bg-white p-3">
         <span className="font-semibold">Novo grupo de adicionais</span>
         <input className={campo} placeholder='Nome do grupo, ex.: "Molhos"' value={nome} onChange={e => setNome(e.target.value)} />
@@ -838,27 +835,18 @@ function AbaAdicionais({ loja }: { loja: Loja }) {
         <label className="flex items-center gap-2"><input type="checkbox" checked={obrigatorio} onChange={e => setObrigatorio(e.target.checked)} /> Obrigatório (o cliente precisa escolher para finalizar)</label>
         <button className={botao}>Criar grupo</button>
       </form>
-      {grupos.map(g => {
-        const buscaLimpa = busca.trim().toLowerCase()
-        const grupoBate = !buscaLimpa || g.nome.toLowerCase().includes(buscaLimpa)
-        const itensGrupo = itens.filter(i => i.grupo_id === g.id && (grupoBate || i.nome.toLowerCase().includes(buscaLimpa)))
-        if (buscaLimpa && !grupoBate && itensGrupo.length === 0) return null
-        return (
+      {grupos.map(g => (
         <div key={g.id} className="rounded-xl border border-neutral-200 bg-white p-3">
           <GrupoLinha grupo={g} loja={loja} feito={carregar} erro={setErro} />
           <div className="mt-2 space-y-2 pl-2">
-            {itensGrupo.map(i => <FormItemAdicional key={i.id + i.nome + i.preco} grupoId={g.id} loja={loja} item={i} feito={carregar} erro={setErro} />)}
+            {itens.filter(i => i.grupo_id === g.id).map(i => <FormItemAdicional key={i.id + i.nome + i.preco} grupoId={g.id} loja={loja} item={i} feito={carregar} erro={setErro} />)}
             <details className="rounded-lg bg-neutral-100 p-2">
               <summary className="cursor-pointer text-sm font-semibold">Novo item neste grupo</summary>
               <div className="mt-2"><FormItemAdicional grupoId={g.id} loja={loja} feito={carregar} erro={setErro} /></div>
             </details>
           </div>
         </div>
-        )
-      })}
-      {busca.trim() && grupos.every(g => !g.nome.toLowerCase().includes(busca.trim().toLowerCase()) && !itens.some(i => i.grupo_id === g.id && i.nome.toLowerCase().includes(busca.trim().toLowerCase()))) && (
-        <p className="rounded-xl bg-white p-4 text-neutral-600">Nenhum adicional encontrado para "{busca.trim()}".</p>
-      )}
+      ))}
     </section>
   )
 }
@@ -960,37 +948,6 @@ function FormItemAdicional({ grupoId, loja, item, feito, erro }: { grupoId: stri
   )
 }
 
-type BannerEstado = { url: string | null; arquivo: File | null; preview: string | null }
-
-function CampoBanner({ titulo, medidas, valor, mudar, erro }: { titulo: string; medidas: string; valor: BannerEstado; mudar: (b: BannerEstado) => void; erro: (m: string) => void }) {
-  const mostrar = valor.preview || valor.url
-  function escolher(arquivo: File | undefined) {
-    if (!arquivo) return
-    if (!arquivo.type.startsWith('image/')) return erro('Escolha um arquivo de imagem (JPG, PNG ou WEBP).')
-    if (arquivo.size > TAM_MAX_FOTO) return erro('A imagem precisa ter até 5 MB.')
-    erro('')
-    mudar({ ...valor, arquivo, preview: URL.createObjectURL(arquivo) })
-  }
-  return (
-    <div>
-      <span className="mb-1 block font-semibold">{titulo}</span>
-      <p className="mb-2 text-sm text-neutral-600">{medidas}</p>
-      {mostrar ? (
-        <img src={mostrar} alt="" className="mb-2 max-h-40 rounded-lg border border-neutral-300 object-contain" />
-      ) : (
-        <div className="mb-2 flex h-20 w-40 items-center justify-center rounded-lg border border-dashed border-neutral-300 text-xs text-neutral-400">sem banner</div>
-      )}
-      <div className="flex items-center gap-3">
-        <label className={`${claro} cursor-pointer text-center text-sm`}>
-          {mostrar ? 'Trocar banner' : 'Enviar banner'}
-          <input type="file" accept="image/*" className="hidden" onChange={e => escolher(e.target.files?.[0])} />
-        </label>
-        {mostrar && <button type="button" className="text-sm text-neutral-600 underline" onClick={() => mudar({ url: null, arquivo: null, preview: null })}>Remover banner</button>}
-      </div>
-    </div>
-  )
-}
-
 function AbaLoja({ loja, salvo }: { loja: Loja; salvo: (l: Loja) => void }) {
   const [whatsapp, setWhatsapp] = useState(loja.whatsapp)
   const [endereco, setEndereco] = useState(loja.endereco ?? '')
@@ -1005,8 +962,6 @@ function AbaLoja({ loja, salvo }: { loja: Loja; salvo: (l: Loja) => void }) {
   const [logoArquivo, setLogoArquivo] = useState<File | null>(null)
   const [logoPreview, setLogoPreview] = useState<string | null>(null)
   const [enviandoLogo, setEnviandoLogo] = useState(false)
-  const [bannerCel, setBannerCel] = useState<BannerEstado>({ url: loja.banner_celular_url, arquivo: null, preview: null })
-  const [bannerPc, setBannerPc] = useState<BannerEstado>({ url: loja.banner_pc_url, arquivo: null, preview: null })
   const [erro, setErro] = useState('')
   const [ok, setOk] = useState(false)
   const [formasPag, setFormasPag] = useState<FormaPagamento[]>([])
@@ -1063,25 +1018,11 @@ function AbaLoja({ loja, salvo }: { loja: Loja; salvo: (l: Loja) => void }) {
       if (erroEnvio) return setErro('Não foi possível enviar o logo: ' + erroEnvio.message)
       logo_url = supabase.storage.from('produtos').getPublicUrl(caminho).data.publicUrl
     }
-    async function enviarBanner(b: BannerEstado, nome: string): Promise<string | null | undefined> {
-      if (!b.arquivo) return b.url
-      setEnviandoLogo(true)
-      const ext = b.arquivo.name.split('.').pop() || 'jpg'
-      const caminho = `${loja.id}/${nome}-${crypto.randomUUID()}.${ext}`
-      const { error: erroEnvio } = await supabase.storage.from('produtos').upload(caminho, b.arquivo, { upsert: false })
-      setEnviandoLogo(false)
-      if (erroEnvio) { setErro('Não foi possível enviar o banner: ' + erroEnvio.message); return undefined }
-      return supabase.storage.from('produtos').getPublicUrl(caminho).data.publicUrl
-    }
-    const banner_celular_url = await enviarBanner(bannerCel, 'banner-celular')
-    if (banner_celular_url === undefined) return
-    const banner_pc_url = await enviarBanner(bannerPc, 'banner-pc')
-    if (banner_pc_url === undefined) return
     const vias = Math.min(5, Math.max(1, Number(viasImpressao) || 1))
-    const dados = { banner_celular_url, banner_pc_url, whatsapp, endereco: endereco.trim() || null, aceita_retirada: retirada, impressora: impressora.trim() || null, logo_url, email: email.trim() || null, cpf_cnpj: cpfCnpj.trim() || null, imprime_via_cozinha: imprimeViaCozinha, vias_impressao: vias, cor }
+    const dados = { whatsapp, endereco: endereco.trim() || null, aceita_retirada: retirada, impressora: impressora.trim() || null, logo_url, email: email.trim() || null, cpf_cnpj: cpfCnpj.trim() || null, imprime_via_cozinha: imprimeViaCozinha, vias_impressao: vias, cor }
     const { error } = await supabase.from('lojas').update(dados).eq('id', loja.id)
     if (error) return setErro(error.message)
-    setErro(''); setOk(true); setLogoArquivo(null); setLogoPreview(null); setLogoUrl(logo_url); setBannerCel({ url: banner_celular_url, arquivo: null, preview: null }); setBannerPc({ url: banner_pc_url, arquivo: null, preview: null }); setViasImpressao(String(vias)); salvo({ ...loja, ...dados })
+    setErro(''); setOk(true); setLogoArquivo(null); setLogoPreview(null); setLogoUrl(logo_url); setViasImpressao(String(vias)); salvo({ ...loja, ...dados })
     registrarLog(loja.id, 'Dados da loja atualizados')
   }
   const mostrarLogo = logoPreview || logoUrl
@@ -1127,9 +1068,6 @@ function AbaLoja({ loja, salvo }: { loja: Loja; salvo: (l: Loja) => void }) {
           />
         </div>
       </div>
-      <CampoBanner titulo="Banner de Celular" medidas="Medida sugerida: 390px de largura × 260px de altura (tela do celular)." valor={bannerCel} mudar={setBannerCel} erro={setErro} />
-      <CampoBanner titulo="Banner de PC" medidas="Medida sugerida: 672px de largura × 450px de altura (tela do computador)." valor={bannerPc} mudar={setBannerPc} erro={setErro} />
-      <p className="-mt-1 text-sm text-neutral-600">Os banners aparecem no topo do cardápio, no lugar do nome. Para a imagem ficar nítida, você pode enviar no dobro da medida (mesma proporção). Se enviar só um, ele é usado nos dois tamanhos.</p>
       <label className="block"><span className="font-semibold">WhatsApp que recebe os pedidos</span>
         <input className={campo} inputMode="numeric" value={whatsapp} onChange={e => setWhatsapp(e.target.value.replace(/\D/g, ''))} /></label>
       <label className="block"><span className="font-semibold">Endereço da loja</span>
