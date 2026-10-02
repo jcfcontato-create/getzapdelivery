@@ -336,7 +336,7 @@ export default function Cardapio() {
           {cats.map(c => {
             const buscaLimpa = busca.trim().toLowerCase()
             const produtosCategoria = prods.filter(p => p.categoria_id === c.id && (!buscaLimpa || p.nome.toLowerCase().includes(buscaLimpa)))
-            if (buscaLimpa && produtosCategoria.length === 0) return null
+            if (produtosCategoria.length === 0) return null
             return (
             <section key={c.id} className="mt-6">
               <h2 className="text-xl font-bold">{c.nome}</h2>
