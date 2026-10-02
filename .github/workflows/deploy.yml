@@ -10,12 +10,12 @@ jobs:
     runs-on: self-hosted
     steps:
       - name: Baixar o codigo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Preparar Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
-          node-version: '20'
+          node-version: '24'
 
       - name: Instalar dependencias do app
         working-directory: app
@@ -38,7 +38,7 @@ jobs:
           rsync -avzr --delete app/dist/ "${{ secrets.VPS_PATH }}/"
 
       - name: Preparar CLI do Supabase
-        uses: supabase/setup-cli@v1
+        uses: supabase/setup-cli@v3
         with:
           version: latest
 
