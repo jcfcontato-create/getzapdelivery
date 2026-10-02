@@ -316,9 +316,12 @@ export default function Cardapio() {
 
   return (
     <div className="mx-auto min-h-screen max-w-2xl bg-white pb-28 text-neutral-900">
-      <div className="flex items-center justify-between gap-3 bg-black px-4 py-3">
-        {loja.logo_url ? <img src={loja.logo_url} alt={loja.nome} className="h-10 w-10 shrink-0 rounded-full object-cover" /> : <span />}
-        <div className="flex items-center gap-4 text-white">
+      <div className="flex items-center justify-between gap-3 px-4 py-3" style={{ background: cor, color: texto(cor) }}>
+        <div className="flex min-w-0 items-center gap-3">
+          {loja.logo_url && <img src={loja.logo_url} alt="" className="h-10 w-10 shrink-0 rounded-full object-cover" />}
+          <span className="truncate text-lg font-bold">{loja.nome}</span>
+        </div>
+        <div className="flex shrink-0 items-center gap-4">
           <button type="button" aria-label="Compartilhar cardápio" onClick={compartilhar}><IconeCompartilhar /></button>
           {etapa === 'menu' && (
             <button type="button" aria-label="Buscar produto" onClick={() => setBuscaAberta(v => !v)}><IconeBusca /></button>
@@ -326,7 +329,7 @@ export default function Cardapio() {
         </div>
       </div>
       {buscaAberta && etapa === 'menu' && (
-        <div className="bg-black px-4 pb-3">
+        <div className="px-4 pb-3" style={{ background: cor }}>
           <input autoFocus className={campo} placeholder="Buscar produto pelo nome..." value={busca} onChange={e => setBusca(e.target.value)} />
         </div>
       )}
