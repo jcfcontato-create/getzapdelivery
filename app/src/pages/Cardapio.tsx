@@ -337,6 +337,22 @@ export default function Cardapio() {
         <header>
           <h1 className="sr-only">{loja.nome}</h1>
           <img src={BANNER_TESTE[slug ?? '']} alt={loja.nome} className="block aspect-[32/15] w-full object-cover" />
+          {(horario.texto || loja.endereco) && (
+            <div className="flex flex-col items-center gap-1 px-4 py-3 text-center text-sm sm:flex-row sm:justify-center sm:gap-4" style={{ background: cor, color: texto(cor) }}>
+              {horario.texto && (
+                <p className="flex items-center gap-1.5">
+                  <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>
+                  {horario.texto}
+                </p>
+              )}
+              {loja.endereco && (
+                <p className="flex items-center gap-1.5">
+                  <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21Z" /><circle cx="12" cy="9.5" r="2.5" /></svg>
+                  {loja.endereco}
+                </p>
+              )}
+            </div>
+          )}
         </header>
       ) : (
         <header className="flex flex-col items-center gap-1 bg-black px-4 py-5 text-center">
