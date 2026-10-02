@@ -38,7 +38,7 @@ jobs:
           rsync -avzr --delete app/dist/ "${{ secrets.VPS_PATH }}/"
 
       - name: Preparar CLI do Supabase
-        uses: supabase/setup-cli@v3
+        uses: supabase/setup-cli@v1
         with:
           version: latest
 
