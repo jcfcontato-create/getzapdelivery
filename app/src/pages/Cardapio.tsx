@@ -20,6 +20,9 @@ const R = (n: number) => n.toLocaleString('pt-BR', { style: 'currency', currency
 const vazio: Form = { nome: '', telefone: '', tipo: 'entrega', bairro: '', rua: '', numero: '', complemento: '', pagamento: '', troco: '', obs: '' }
 const enderecoCompleto = (f: Form) => `${f.rua.trim()}, ${f.numero.trim()}${f.complemento.trim() ? ` - ${f.complemento.trim()}` : ''}`
 const campo = 'w-full rounded-lg border border-neutral-300 px-3 py-2'
+// TESTE: banner no topo no lugar do texto, só para as lojas listadas aqui.
+// Se aprovado, vira um campo "banner" por loja no painel.
+const BANNER_TESTE: Record<string, string> = { 'big-acai': '/banners/big-acai.webp' }
 const rotulo = 'mb-1 block text-sm font-semibold text-neutral-800'
 
 // Máscara de celular: (xx) xxxxx-xxxx — e (xx) xxxx-xxxx enquanto tiver só 10 dígitos
@@ -327,12 +330,19 @@ export default function Cardapio() {
           <input autoFocus className={campo} placeholder="Buscar produto pelo nome..." value={busca} onChange={e => setBusca(e.target.value)} />
         </div>
       )}
-      <header className="flex flex-col items-center gap-1 bg-black px-4 py-5 text-center">
-        <h1 className="text-2xl font-bold" style={{ color: cor }}>{loja.nome}</h1>
-        <p className="text-sm text-white">{podeReceberPedido ? 'Aberto agora' : 'Fechado no momento'}</p>
-        {horario.texto && <p className="text-sm text-neutral-300">{horario.texto}</p>}
-        {loja.endereco && <p className="text-sm text-neutral-300">{loja.endereco}</p>}
-      </header>
+      {BANNER_TESTE[slug ?? ''] ? (
+        <header>
+          <h1 className="sr-only">{loja.nome}</h1>
+          <img src={BANNER_TESTE[slug ?? '']} alt={loja.nome} className="block aspect-[32/15] w-full object-cover" />
+        </header>
+      ) : (
+        <header className="flex flex-col items-center gap-1 bg-black px-4 py-5 text-center">
+          <h1 className="text-2xl font-bold" style={{ color: cor }}>{loja.nome}</h1>
+          <p className="text-sm text-white">{podeReceberPedido ? 'Aberto agora' : 'Fechado no momento'}</p>
+          {horario.texto && <p className="text-sm text-neutral-300">{horario.texto}</p>}
+          {loja.endereco && <p className="text-sm text-neutral-300">{loja.endereco}</p>}
+        </header>
+      )}
 
       {etapa === 'menu' && (
         <main className="px-4">
