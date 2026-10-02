@@ -2,7 +2,7 @@ import { type FormEvent, useEffect, useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 
-type Loja = { id: string; nome: string; whatsapp: string; aberta: boolean; aceita_retirada: boolean; cor: string; endereco: string | null; logo_url: string | null; cpf_cnpj: string | null; plataforma_ativa: boolean }
+type Loja = { id: string; nome: string; whatsapp: string; aberta: boolean; aceita_retirada: boolean; cor: string; endereco: string | null; logo_url: string | null; banner_celular_url: string | null; banner_pc_url: string | null; cpf_cnpj: string | null; plataforma_ativa: boolean }
 type Rede = 'instagram' | 'facebook' | 'tiktok' | 'youtube' | 'twitter' | 'whatsapp' | 'site'
 type RedeSocial = { rede: Rede; url: string }
 type Categoria = { id: string; nome: string }
@@ -20,9 +20,6 @@ const R = (n: number) => n.toLocaleString('pt-BR', { style: 'currency', currency
 const vazio: Form = { nome: '', telefone: '', tipo: 'entrega', bairro: '', rua: '', numero: '', complemento: '', pagamento: '', troco: '', obs: '' }
 const enderecoCompleto = (f: Form) => `${f.rua.trim()}, ${f.numero.trim()}${f.complemento.trim() ? ` - ${f.complemento.trim()}` : ''}`
 const campo = 'w-full rounded-lg border border-neutral-300 px-3 py-2'
-// TESTE: banner no topo no lugar do texto, só para as lojas listadas aqui.
-// Se aprovado, vira um campo "banner" por loja no painel.
-const BANNER_TESTE: Record<string, string> = { 'big-acai': '/banners/big-acai.webp' }
 const rotulo = 'mb-1 block text-sm font-semibold text-neutral-800'
 
 // Máscara de celular: (xx) xxxxx-xxxx — e (xx) xxxx-xxxx enquanto tiver só 10 dígitos
@@ -113,7 +110,7 @@ export default function Cardapio() {
 
   useEffect(() => {
     ;(async () => {
-      const { data: l, error: e } = await supabase.from('lojas').select('id,nome,whatsapp,aberta,aceita_retirada,cor,endereco,logo_url,cpf_cnpj,plataforma_ativa').eq('slug', slug).maybeSingle()
+      const { data: l, error: e } = await supabase.from('lojas').select('id,nome,whatsapp,aberta,aceita_retirada,cor,endereco,logo_url,banner_celular_url,banner_pc_url,cpf_cnpj,plataforma_ativa').eq('slug', slug).maybeSingle()
       if (e) { setErro(`Não foi possível carregar a loja: ${e.message}`); setCarga(false); return }
       if (!l) { setErro('Loja não encontrada.'); setCarga(false); return }
       if (!l.plataforma_ativa) { setErro('Este cardápio está temporariamente indisponível.'); setCarga(false); return }
@@ -333,35 +330,31 @@ export default function Cardapio() {
           <input autoFocus className={campo} placeholder="Buscar produto pelo nome..." value={busca} onChange={e => setBusca(e.target.value)} />
         </div>
       )}
-      {BANNER_TESTE[slug ?? ''] ? (
-        <header>
-          <h1 className="sr-only">{loja.nome}</h1>
-          <img src={BANNER_TESTE[slug ?? '']} alt={loja.nome} className="block aspect-[32/15] w-full object-cover" />
-          {(horario.texto || loja.endereco) && (
-            <div className="flex flex-col items-center gap-1 px-4 py-3 text-center text-sm sm:flex-row sm:justify-center sm:gap-4" style={{ background: cor, color: texto(cor) }}>
-              {horario.texto && (
-                <p className="flex items-center gap-1.5">
-                  <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>
-                  {horario.texto}
-                </p>
-              )}
-              {loja.endereco && (
-                <p className="flex items-center gap-1.5">
-                  <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21Z" /><circle cx="12" cy="9.5" r="2.5" /></svg>
-                  {loja.endereco}
-                </p>
-              )}
-            </div>
+      <header>
+        <h1 className="sr-only">{loja.nome}</h1>
+        {(loja.banner_celular_url || loja.banner_pc_url) && (
+          <picture>
+            {loja.banner_pc_url && <source media="(min-width: 640px)" srcSet={loja.banner_pc_url} />}
+            <img src={loja.banner_celular_url || loja.banner_pc_url || ''} alt="" className="block h-auto w-full" />
+          </picture>
+        )}
+        {(horario.texto || loja.endereco) && (
+        <div className="flex flex-col items-center gap-1 px-4 py-3 text-center text-sm sm:flex-row sm:justify-center sm:gap-4" style={{ background: cor, color: texto(cor) }}>
+          {horario.texto && (
+            <p className="flex items-center gap-1.5">
+              <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>
+              {horario.texto}
+            </p>
           )}
-        </header>
-      ) : (
-        <header className="flex flex-col items-center gap-1 bg-black px-4 py-5 text-center">
-          <h1 className="text-2xl font-bold" style={{ color: cor }}>{loja.nome}</h1>
-          <p className="text-sm text-white">{podeReceberPedido ? 'Aberto agora' : 'Fechado no momento'}</p>
-          {horario.texto && <p className="text-sm text-neutral-300">{horario.texto}</p>}
-          {loja.endereco && <p className="text-sm text-neutral-300">{loja.endereco}</p>}
-        </header>
+          {loja.endereco && (
+            <p className="flex items-center gap-1.5">
+              <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21Z" /><circle cx="12" cy="9.5" r="2.5" /></svg>
+              {loja.endereco}
+            </p>
+          )}
+        </div>
       )}
+      </header>
 
       {etapa === 'menu' && (
         <main className="px-4">
