@@ -20,6 +20,16 @@ const R = (n: number) => n.toLocaleString('pt-BR', { style: 'currency', currency
 const vazio: Form = { nome: '', telefone: '', tipo: 'entrega', bairro: '', rua: '', numero: '', complemento: '', pagamento: '', troco: '', obs: '' }
 const enderecoCompleto = (f: Form) => `${f.rua.trim()}, ${f.numero.trim()}${f.complemento.trim() ? ` - ${f.complemento.trim()}` : ''}`
 const campo = 'w-full rounded-lg border border-neutral-300 px-3 py-2'
+const rotulo = 'mb-1 block text-sm font-semibold text-neutral-800'
+
+// Máscara de celular: (xx) xxxxx-xxxx — e (xx) xxxx-xxxx enquanto tiver só 10 dígitos
+function mascaraTelefone(v: string) {
+  const d = v.replace(/\D/g, '').slice(0, 11)
+  if (d.length <= 2) return d.length ? `(${d}` : ''
+  if (d.length <= 6) return `(${d.slice(0, 2)}) ${d.slice(2)}`
+  if (d.length <= 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`
+  return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`
+}
 // Texto preto ou branco, conforme a cor da loja, para manter a leitura nos botões
 const texto = (hex: string) => {
   const n = parseInt(hex.slice(1), 16)
@@ -395,34 +405,67 @@ export default function Cardapio() {
               {l.selecoes.map((s, k) => <p key={k} className="pl-9 text-sm text-neutral-600">+ {s.qtd}x {s.nome}{s.preco > 0 && ` (${R(s.preco)})`}</p>)}
             </div>
           ))}
-          <input required className={campo} placeholder="Seu nome" value={f.nome} onChange={e => set('nome', e.target.value)} />
-          <input required className={campo} placeholder="Telefone com DDD" inputMode="tel" value={f.telefone} onChange={e => { set('telefone', e.target.value); setAutoPreenchido(false) }} onBlur={buscarCliente} />
+          <label className="block">
+            <span className={rotulo}>WhatsApp / Telefone</span>
+            <input required className={campo} placeholder="(11) 99999-9999" inputMode="tel" autoComplete="tel" pattern="\(\d{2}\) \d{4,5}-\d{4}" title="Digite o telefone com DDD: (xx) xxxxx-xxxx" value={f.telefone} onChange={e => { set('telefone', mascaraTelefone(e.target.value)); setAutoPreenchido(false) }} onBlur={buscarCliente} />
+          </label>
           {autoPreenchido && <p className="text-sm text-green-700">Encontramos seu cadastro! Preenchemos os dados do seu último pedido — pode ajustar o que precisar.</p>}
-          <select className={campo} value={f.tipo} onChange={e => set('tipo', e.target.value)}>
-            <option value="entrega">Entrega</option>
-            {loja.aceita_retirada && <option value="retirada">Retirar na loja</option>}
-          </select>
+          <label className="block">
+            <span className={rotulo}>Nome</span>
+            <input required className={campo} placeholder="Seu nome" autoComplete="name" value={f.nome} onChange={e => set('nome', e.target.value)} />
+          </label>
+          <label className="block">
+            <span className={rotulo}>Entrega ou retirada</span>
+            <select className={campo} value={f.tipo} onChange={e => set('tipo', e.target.value)}>
+              <option value="entrega">Entrega</option>
+              {loja.aceita_retirada && <option value="retirada">Retirar na loja</option>}
+            </select>
+          </label>
           {f.tipo === 'retirada' && loja.endereco && <p className="text-sm">Retirada em: {loja.endereco}</p>}
           {f.tipo === 'entrega' && (<>
-            <select required className={campo} value={f.bairro} onChange={e => set('bairro', e.target.value)}>
-              <option value="">Escolha o bairro</option>
-              {zonas.map(z => <option key={z.bairro} value={z.bairro}>{z.bairro} ({R(z.taxa)})</option>)}
-            </select>
-            <input required className={campo} placeholder="Rua" value={f.rua} onChange={e => set('rua', e.target.value)} />
+            <label className="block">
+              <span className={rotulo}>Bairro</span>
+              <select required className={campo} value={f.bairro} onChange={e => set('bairro', e.target.value)}>
+                <option value="">Escolha o bairro</option>
+                {zonas.map(z => <option key={z.bairro} value={z.bairro}>{z.bairro} ({R(z.taxa)})</option>)}
+              </select>
+            </label>
+            <label className="block">
+              <span className={rotulo}>Rua</span>
+              <input required className={campo} placeholder="Nome da rua" value={f.rua} onChange={e => set('rua', e.target.value)} />
+            </label>
             <div className="grid grid-cols-2 gap-2">
-              <input required className={campo} placeholder="Número" value={f.numero} onChange={e => set('numero', e.target.value)} />
-              <input className={campo} placeholder="Complemento (opcional)" value={f.complemento} onChange={e => set('complemento', e.target.value)} />
+              <label className="block">
+                <span className={rotulo}>Número</span>
+                <input required className={campo} placeholder="Ex.: 123" value={f.numero} onChange={e => set('numero', e.target.value)} />
+              </label>
+              <label className="block">
+                <span className={rotulo}>Complemento</span>
+                <input className={campo} placeholder="Opcional" value={f.complemento} onChange={e => set('complemento', e.target.value)} />
+              </label>
             </div>
           </>)}
-          <select required className={campo} value={f.pagamento} onChange={e => set('pagamento', e.target.value)}>
-            {formasPag.length === 0 && <option value="">Nenhuma forma de pagamento cadastrada</option>}
-            {formasPag.map(fp => <option key={fp.id} value={fp.nome}>{fp.nome}</option>)}
-          </select>
-          {formaSelecionada?.aceita_troco && <input className={campo} placeholder="Troco para quanto? (opcional)" value={f.troco} onChange={e => set('troco', e.target.value)} />}
-          <textarea className={campo} placeholder="Observações (opcional)" value={f.obs} onChange={e => set('obs', e.target.value)} />
+          <label className="block">
+            <span className={rotulo}>Forma de pagamento</span>
+            <select required className={campo} value={f.pagamento} onChange={e => set('pagamento', e.target.value)}>
+              {formasPag.length === 0 && <option value="">Nenhuma forma de pagamento cadastrada</option>}
+              {formasPag.map(fp => <option key={fp.id} value={fp.nome}>{fp.nome}</option>)}
+            </select>
+          </label>
+          {formaSelecionada?.aceita_troco && (
+            <label className="block">
+              <span className={rotulo}>Troco para quanto?</span>
+              <input className={campo} placeholder="Opcional" value={f.troco} onChange={e => set('troco', e.target.value)} />
+            </label>
+          )}
+          <label className="block">
+            <span className={rotulo}>Observações</span>
+            <textarea className={campo} placeholder="Opcional" value={f.obs} onChange={e => set('obs', e.target.value)} />
+          </label>
           <div>
+            <span className={rotulo}>Cupom de desconto</span>
             <div className="flex gap-2">
-              <input className={campo} placeholder="Cupom de desconto" value={cupomCodigo} onChange={e => setCupomCodigo(e.target.value.toUpperCase())} disabled={!!cupom} />
+              <input className={campo} placeholder="Digite o código" aria-label="Cupom de desconto" value={cupomCodigo} onChange={e => setCupomCodigo(e.target.value.toUpperCase())} disabled={!!cupom} />
               {cupom ? (
                 <button type="button" onClick={removerCupom} className="shrink-0 rounded-lg border border-neutral-400 px-4 py-2 font-bold">Remover</button>
               ) : (
@@ -479,7 +522,7 @@ export default function Cardapio() {
       )}
 
       <footer className="mt-10 space-y-3 border-t border-neutral-200 bg-neutral-50 px-4 py-6 text-center text-sm text-neutral-600">
-        {loja.logo_url && <img src={loja.logo_url} alt={loja.nome} className="mx-auto h-12 w-12 rounded-full object-cover" />}
+        {loja.logo_url && <img src={loja.logo_url} alt={loja.nome} className="mx-auto h-24 w-24 rounded-full object-cover" />}
         <p className="font-semibold text-neutral-800">{loja.nome}</p>
         {loja.cpf_cnpj && <p>CNPJ/CPF: {loja.cpf_cnpj}</p>}
         {loja.endereco && <p>{loja.endereco}</p>}
@@ -492,6 +535,9 @@ export default function Cardapio() {
             ))}
           </div>
         )}
+        <p className="border-t border-neutral-200 pt-3 text-xs text-neutral-500">
+          Sistema desenvolvido por <a href="https://gestaoexpress.com.br/" target="_blank" rel="noopener noreferrer" className="font-semibold underline hover:text-neutral-800">Gestão Express</a>, quer um catálogo igual este clique <a href="https://getzapdelivery.com.br" target="_blank" rel="noopener noreferrer" className="font-semibold underline hover:text-neutral-800">aqui.</a>
+        </p>
       </footer>
     </div>
   )

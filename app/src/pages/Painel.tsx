@@ -136,8 +136,9 @@ function Login() {
   }
   return (
     <main className="mx-auto max-w-sm px-4 py-16">
-      <h1 className="mb-2 text-2xl font-bold text-[#1B2A4A]">GetZap Delivery</h1>
-      <p className="mb-6">Entre para gerenciar a sua loja.</p>
+      <img src="/logo-getzapdelivery.jpg" alt="GetZap Delivery" className="mx-auto mb-4 w-48" />
+      <h1 className="mb-2 text-center text-2xl font-bold text-[#1B2A4A]">GetZap Delivery</h1>
+      <p className="mb-6 text-center">Entre para gerenciar a sua loja.</p>
       <form onSubmit={entrar} className="space-y-3">
         <input required type="email" autoComplete="username" className={campo} placeholder="E-mail" value={email} onChange={e => setEmail(e.target.value)} />
         <input required type="password" autoComplete="current-password" className={campo} placeholder="Senha" value={senha} onChange={e => setSenha(e.target.value)} />
@@ -799,6 +800,7 @@ function AbaAdicionais({ loja }: { loja: Loja }) {
   const [tipo, setTipo] = useState<'unica' | 'multipla'>('unica')
   const [obrigatorio, setObrigatorio] = useState(false)
   const [maximo, setMaximo] = useState('')
+  const [busca, setBusca] = useState('')
   const carregar = useCallback(async () => {
     const [g, i] = await Promise.all([
       supabase.from('grupos_adicionais').select('id,nome,tipo,obrigatorio,maximo').eq('loja_id', loja.id).order('ordem'),
@@ -822,6 +824,7 @@ function AbaAdicionais({ loja }: { loja: Loja }) {
     <section className="space-y-4">
       <p className="text-sm text-neutral-600">Cadastre aqui os adicionais (ex.: "Escolha o sabor", "Adicionais extras"). Depois, na aba Cardápio, marque em cada produto quais adicionais ele usa.</p>
       <Erro m={erro} />
+      <input className={campo} placeholder="Buscar adicional pelo nome..." value={busca} onChange={e => setBusca(e.target.value)} />
       <form onSubmit={criarGrupo} className="grid gap-2 rounded-xl border border-neutral-200 bg-white p-3">
         <span className="font-semibold">Novo grupo de adicionais</span>
         <input className={campo} placeholder='Nome do grupo, ex.: "Molhos"' value={nome} onChange={e => setNome(e.target.value)} />
@@ -835,18 +838,27 @@ function AbaAdicionais({ loja }: { loja: Loja }) {
         <label className="flex items-center gap-2"><input type="checkbox" checked={obrigatorio} onChange={e => setObrigatorio(e.target.checked)} /> Obrigatório (o cliente precisa escolher para finalizar)</label>
         <button className={botao}>Criar grupo</button>
       </form>
-      {grupos.map(g => (
+      {grupos.map(g => {
+        const buscaLimpa = busca.trim().toLowerCase()
+        const grupoBate = !buscaLimpa || g.nome.toLowerCase().includes(buscaLimpa)
+        const itensGrupo = itens.filter(i => i.grupo_id === g.id && (grupoBate || i.nome.toLowerCase().includes(buscaLimpa)))
+        if (buscaLimpa && !grupoBate && itensGrupo.length === 0) return null
+        return (
         <div key={g.id} className="rounded-xl border border-neutral-200 bg-white p-3">
           <GrupoLinha grupo={g} loja={loja} feito={carregar} erro={setErro} />
           <div className="mt-2 space-y-2 pl-2">
-            {itens.filter(i => i.grupo_id === g.id).map(i => <FormItemAdicional key={i.id + i.nome + i.preco} grupoId={g.id} loja={loja} item={i} feito={carregar} erro={setErro} />)}
+            {itensGrupo.map(i => <FormItemAdicional key={i.id + i.nome + i.preco} grupoId={g.id} loja={loja} item={i} feito={carregar} erro={setErro} />)}
             <details className="rounded-lg bg-neutral-100 p-2">
               <summary className="cursor-pointer text-sm font-semibold">Novo item neste grupo</summary>
               <div className="mt-2"><FormItemAdicional grupoId={g.id} loja={loja} feito={carregar} erro={setErro} /></div>
             </details>
           </div>
         </div>
-      ))}
+        )
+      })}
+      {busca.trim() && grupos.every(g => !g.nome.toLowerCase().includes(busca.trim().toLowerCase()) && !itens.some(i => i.grupo_id === g.id && i.nome.toLowerCase().includes(busca.trim().toLowerCase()))) && (
+        <p className="rounded-xl bg-white p-4 text-neutral-600">Nenhum adicional encontrado para "{busca.trim()}".</p>
+      )}
     </section>
   )
 }
