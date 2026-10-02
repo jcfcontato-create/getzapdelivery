@@ -35,6 +35,15 @@ const texto = (hex: string) => {
   const n = parseInt(hex.slice(1), 16)
   return 0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255) > 150 ? '#000' : '#fff'
 }
+// Cor da loja para texto sobre fundo branco: se for muito clara (ex.: amarelo), escurece para continuar legível
+const corLegivel = (hex: string) => {
+  const n = parseInt(hex.slice(1), 16)
+  const lum = 0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)
+  if (lum <= 170) return hex
+  const f = 170 / lum
+  const c = (v: number) => Math.round(v * f).toString(16).padStart(2, '0')
+  return `#${c(n >> 16)}${c((n >> 8) & 255)}${c(n & 255)}`
+}
 const linhaTotal = (l: LinhaCarrinho) => (l.produto.preco + l.selecoes.reduce((s, x) => s + x.preco * x.qtd, 0)) * l.qtd
 // Sem horário cadastrado para o dia (dono ainda não configurou): não bloqueia sozinho,
 // só o botão manual "Loja aberta/fechada" continua valendo, como sempre foi.
@@ -357,7 +366,7 @@ export default function Cardapio() {
       </header>
 
       {etapa === 'menu' && (
-        <main className="px-4">
+        <main className="bg-neutral-100 px-4 pb-6 pt-1">
           {!podeReceberPedido && (
             <p role="status" className="my-4 rounded-lg bg-red-100 p-3 text-red-800">
               A loja está fechada{horario.texto ? ` (${horario.texto.toLowerCase()})` : ''}. Você pode ver o cardápio, mas ainda não dá para pedir.
@@ -369,30 +378,39 @@ export default function Cardapio() {
             if (buscaLimpa && produtosCategoria.length === 0) return null
             return (
             <section key={c.id} className="mt-6">
-              <h2 className="text-xl font-bold">{c.nome}</h2>
+              <h2 className="mb-3 flex items-center gap-2 text-xl font-bold">
+                <span className="h-6 w-1.5 rounded-full" style={{ background: cor }} aria-hidden="true" />
+                {c.nome}
+              </h2>
+              <div className="space-y-3">
               {produtosCategoria.map(p => {
                 const temAdicionais = gruposDoProduto(p.id).length > 0
                 const linhaSimples = carrinho.find(l => l.produto.id === p.id && l.selecoes.length === 0)
                 const qtdOutrasLinhas = carrinho.filter(l => l.produto.id === p.id && l.selecoes.length > 0).reduce((s, l) => s + l.qtd, 0)
                 return (
-                  <div key={p.id} className="flex items-center gap-3 border-b border-neutral-200 py-3">
-                    {p.foto_url && <img src={p.foto_url} alt="" className="h-16 w-16 rounded-lg object-cover" />}
-                    <div className="flex-1">
-                      <p className="font-semibold">{p.nome}</p>
-                      {p.descricao && <p className="text-sm text-neutral-600">{p.descricao}</p>}
-                      <p className="font-bold">{precoAPartir(p) != null ? `A partir de ${R(precoAPartir(p)!)}` : R(p.preco)}</p>
+                  <div key={p.id} className="flex items-center gap-3 rounded-2xl border border-neutral-200 bg-white p-3 shadow-sm">
+                    {p.foto_url && <img src={p.foto_url} alt="" className="h-20 w-20 shrink-0 rounded-xl object-cover" />}
+                    <div className="min-w-0 flex-1">
+                      <p className="font-bold leading-tight">{p.nome}</p>
+                      {p.descricao && <p className="mt-0.5 line-clamp-2 text-sm text-neutral-600">{p.descricao}</p>}
+                      <p className="mt-1 text-base font-extrabold" style={{ color: corLegivel(cor) }}>{precoAPartir(p) != null ? `A partir de ${R(precoAPartir(p)!)}` : R(p.preco)}</p>
                       {qtdOutrasLinhas > 0 && <p className="text-xs text-neutral-500">{qtdOutrasLinhas} no carrinho com adicionais</p>}
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex shrink-0 items-center gap-2">
                       {!temAdicionais && linhaSimples && linhaSimples.qtd > 0 && (<>
-                        <button aria-label={`Remover ${p.nome}`} onClick={() => mudarQtdSimples(p.id, -1)} className="h-9 w-9 rounded-full border border-neutral-400">-</button>
-                        <span>{linhaSimples.qtd}</span>
+                        <button aria-label={`Remover ${p.nome}`} onClick={() => mudarQtdSimples(p.id, -1)} className="flex h-9 w-9 items-center justify-center rounded-full border-2 transition active:scale-90" style={{ borderColor: cor, color: corLegivel(cor) }}>
+                          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" aria-hidden="true"><path d="M5 12h14" /></svg>
+                        </button>
+                        <span className="min-w-5 text-center text-lg font-extrabold">{linhaSimples.qtd}</span>
                       </>)}
-                      <button aria-label={`Adicionar ${p.nome}`} onClick={() => abrirProduto(p)} disabled={!podeReceberPedido} className="h-9 w-9 rounded-full disabled:opacity-40" style={{ background: cor, color: texto(cor) }}>+</button>
+                      <button aria-label={`Adicionar ${p.nome}`} onClick={() => abrirProduto(p)} disabled={!podeReceberPedido} className="flex h-12 w-12 items-center justify-center rounded-full shadow-md transition hover:brightness-110 active:scale-90 disabled:opacity-40 disabled:shadow-none" style={{ background: cor, color: texto(cor) }}>
+                        <svg viewBox="0 0 24 24" className="h-7 w-7" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+                      </button>
                     </div>
                   </div>
                 )
               })}
+              </div>
             </section>
             )
           })}
