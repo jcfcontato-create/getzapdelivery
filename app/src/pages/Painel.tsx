@@ -1103,6 +1103,7 @@ function CampoBanner({ titulo, medidas, valor, mudar, erro }: { titulo: string; 
 }
 
 function AbaLoja({ loja, salvo }: { loja: Loja; salvo: (l: Loja) => void }) {
+  const [nomeLoja, setNomeLoja] = useState(loja.nome)
   const [whatsapp, setWhatsapp] = useState(loja.whatsapp)
   const [endereco, setEndereco] = useState(loja.endereco ?? '')
   const [retirada, setRetirada] = useState(loja.aceita_retirada)
@@ -1162,6 +1163,7 @@ function AbaLoja({ loja, salvo }: { loja: Loja; salvo: (l: Loja) => void }) {
   }
   async function salvar(e: FormEvent) {
     e.preventDefault(); setOk(false)
+    if (!nomeLoja.trim()) return setErro('Informe o nome do restaurante.')
     if (!/^[0-9]{12,13}$/.test(whatsapp)) return setErro('WhatsApp: use só números, com 55 e o DDD. Exemplo: 5511940104824.')
     if (!/^#[0-9a-fA-F]{6}$/.test(cor)) return setErro('Cor do tema: use um código no formato #RRGGBB, por exemplo #7C4CAF.')
     let logo_url = logoUrl
@@ -1189,7 +1191,7 @@ function AbaLoja({ loja, salvo }: { loja: Loja; salvo: (l: Loja) => void }) {
     const banner_pc_url = await enviarBanner(bannerPc, 'banner-pc')
     if (banner_pc_url === undefined) return
     const vias = Math.min(5, Math.max(1, Number(viasImpressao) || 1))
-    const dados = { banner_celular_url, banner_pc_url, whatsapp, endereco: endereco.trim() || null, aceita_retirada: retirada, impressora: impressora.trim() || null, logo_url, email: email.trim() || null, cpf_cnpj: cpfCnpj.trim() || null, imprime_via_cozinha: imprimeViaCozinha, vias_impressao: vias, cor }
+    const dados = { nome: nomeLoja.trim(), banner_celular_url, banner_pc_url, whatsapp, endereco: endereco.trim() || null, aceita_retirada: retirada, impressora: impressora.trim() || null, logo_url, email: email.trim() || null, cpf_cnpj: cpfCnpj.trim() || null, imprime_via_cozinha: imprimeViaCozinha, vias_impressao: vias, cor }
     const { error } = await supabase.from('lojas').update(dados).eq('id', loja.id)
     if (error) return setErro(error.message)
     setErro(''); setOk(true); setLogoArquivo(null); setLogoPreview(null); setLogoUrl(logo_url); setBannerCel({ url: banner_celular_url, arquivo: null, preview: null }); setBannerPc({ url: banner_pc_url, arquivo: null, preview: null }); setViasImpressao(String(vias)); salvo({ ...loja, ...dados })
@@ -1241,6 +1243,9 @@ function AbaLoja({ loja, salvo }: { loja: Loja; salvo: (l: Loja) => void }) {
       <CampoBanner titulo="Banner de Celular" medidas="Medida sugerida: 390px de largura × 260px de altura (tela do celular)." valor={bannerCel} mudar={setBannerCel} erro={setErro} />
       <CampoBanner titulo="Banner de PC" medidas="Medida sugerida: 672px de largura × 450px de altura (tela do computador)." valor={bannerPc} mudar={setBannerPc} erro={setErro} />
       <p className="-mt-1 text-sm text-neutral-600">Os banners aparecem no topo do cardápio, no lugar do nome. Para a imagem ficar nítida, você pode enviar no dobro da medida (mesma proporção). Se enviar só um, ele é usado nos dois tamanhos.</p>
+      <label className="block"><span className="font-semibold">Nome do Restaurante</span>
+        <input className={campo} maxLength={80} value={nomeLoja} onChange={e => setNomeLoja(e.target.value)} />
+        <span className="mt-1 block text-sm text-neutral-600">Aparece no topo do cardápio, no cupom impresso e no monitor. O endereço do cardápio (link) não muda.</span></label>
       <label className="block"><span className="font-semibold">WhatsApp que recebe os pedidos</span>
         <input className={campo} inputMode="numeric" value={whatsapp} onChange={e => setWhatsapp(e.target.value.replace(/\D/g, ''))} /></label>
       <label className="block"><span className="font-semibold">Endereço da loja</span>
