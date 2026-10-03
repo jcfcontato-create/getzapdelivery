@@ -73,7 +73,7 @@ function imprimirPedido(p: Pedido, loja: Loja, titulo?: string, semPreco?: boole
 <p>Pagamento: ${PAG[p.pagamento] ?? esc(p.pagamento)}${p.troco_para ? ` (troco para ${esc(p.troco_para)})` : ''}</p>`
   const html = `<!doctype html><html><head><meta charset="utf-8"><title>Pedido #${p.numero}</title><style>
 @page{size:80mm auto;margin:3mm}
-body{font:13px/1.35 "Courier New",monospace;color:#000;margin:0;width:72mm;text-transform:uppercase}
+body{font:13px/1.35 Arial,Helvetica,sans-serif;color:#000;margin:0;width:72mm;text-transform:uppercase}
 h1,h2,p{margin:0}h1{font-size:15px;text-align:center}h2{font-size:19px;text-align:center;margin:6px 0}
 hr{border:0;border-top:1px dashed #000;margin:6px 0}table{width:100%;border-collapse:collapse}
 td{vertical-align:top;padding:1px 0}.d{text-align:right;white-space:nowrap}.b{font-weight:bold}.ad{padding-left:8px;font-size:11px;color:#333}
