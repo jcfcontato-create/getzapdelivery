@@ -664,6 +664,11 @@ function FormProduto({ loja, cats, grupos, gruposIniciais, sugestoesIniciais, di
         <span className="mb-1 block text-sm font-semibold">Dias da semana em que este produto é vendido</span>
         <p className="mb-1 text-sm text-neutral-600">Deixe tudo desmarcado para vender todos os dias. Marque só os dias em que esse prato específico fica disponível (ex.: feijoada só no sábado).</p>
         <div className="flex flex-wrap gap-2 rounded-lg border border-neutral-200 p-2">
+          <label className="flex w-full items-center gap-1 border-b border-neutral-200 pb-2 text-sm font-semibold">
+            <input type="checkbox" checked={diasHabilitados.length > 0 && diasHabilitados.every(d => diasSel.includes(d))}
+              onChange={e => setDiasSel(e.target.checked ? [...diasHabilitados] : [])} />
+            Selecionar todos
+          </label>
           {diasHabilitados.map(dia => (
             <label key={dia} className="flex items-center gap-1 text-sm">
               <input type="checkbox" checked={diasSel.includes(dia)} onChange={() => alternarDia(dia)} />
