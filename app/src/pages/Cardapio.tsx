@@ -66,6 +66,13 @@ function IconeCompartilhar() {
     </svg>
   )
 }
+function IconeSacola() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M6 7h12l1 13H5L6 7Z" /><path d="M9 7a3 3 0 0 1 6 0" />
+    </svg>
+  )
+}
 function IconeBusca() {
   return (
     <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -339,13 +346,19 @@ export default function Cardapio() {
   const cor = loja.cor
 
   return (
-    <div className="mx-auto min-h-screen max-w-2xl bg-white pb-28 text-neutral-900">
+    <div className="mx-auto min-h-screen max-w-2xl bg-white pb-48 text-neutral-900">
       <div className="flex items-center justify-between gap-3 px-4 py-3" style={{ background: cor, color: texto(cor) }}>
         <div className="flex min-w-0 items-center gap-3">
           {loja.logo_url && <img src={loja.logo_url} alt="" className="h-10 w-10 shrink-0 rounded-full object-cover" />}
           <span className="truncate text-lg font-bold">{loja.nome}</span>
         </div>
         <div className="flex shrink-0 items-center gap-4">
+          {qtd > 0 && etapa === 'menu' && (
+            <button type="button" aria-label={`Ver pedido (${qtd} itens)`} onClick={() => { setEtapa('checkout'); window.scrollTo(0, 0) }} className="relative">
+              <IconeSacola />
+              <span className="absolute -right-2 -top-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1 text-xs font-bold text-white">{qtd}</span>
+            </button>
+          )}
           <button type="button" aria-label="Compartilhar cardápio" onClick={compartilhar}><IconeCompartilhar /></button>
           {etapa === 'menu' && (
             <button type="button" aria-label="Buscar produto" onClick={() => setBuscaAberta(v => !v)}><IconeBusca /></button>
@@ -436,8 +449,14 @@ export default function Cardapio() {
             <p className="mt-6 text-center text-neutral-600">Nenhum produto encontrado para "{busca.trim()}".</p>
           )}
           {qtd > 0 && (
-            <div className="fixed inset-x-0 bottom-0 mx-auto max-w-2xl bg-white p-4 shadow-[0_-4px_12px_rgba(0,0,0,.15)]">
-              <button onClick={() => setEtapa('checkout')} className="w-full rounded-lg bg-black py-3 font-bold" style={{ color: cor }}>Ver pedido ({qtd}) - {R(subtotal)}</button>
+            <div className="pointer-events-none fixed inset-x-0 z-40 mx-auto max-w-2xl px-4" style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 88px)' }}>
+              <button onClick={() => { setEtapa('checkout'); window.scrollTo(0, 0) }} className="pointer-events-auto flex w-full items-center justify-between gap-3 rounded-full px-5 py-4 text-base font-extrabold shadow-[0_8px_24px_rgba(0,0,0,.35)] transition active:scale-95" style={{ background: cor, color: texto(cor) }}>
+                <span className="flex items-center gap-2">
+                  <IconeSacola />
+                  Ver pedido ({qtd})
+                </span>
+                <span>{R(subtotal)}</span>
+              </button>
             </div>
           )}
         </main>
