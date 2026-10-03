@@ -29,11 +29,11 @@ type Cupom = {
 
 const R = (n: number) => Number(n).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 const NUM = (s: string) => Number(s.replace(',', '.'))
-const STATUS: Record<string, string> = { novo: 'Novo', em_preparo: 'Em preparo', saiu_para_entrega: 'Saiu para entrega', entregue: 'Entregue', cancelado: 'Cancelado' }
+const STATUS: Record<string, string> = { novo: 'Novo', em_preparo: 'Em preparo', pronto: 'Pronto (aguardando retirada)', saiu_para_entrega: 'Saiu para entrega', entregue: 'Entregue', cancelado: 'Cancelado' }
 const PROXIMO: Record<string, string> = { novo: 'em_preparo', em_preparo: 'saiu_para_entrega', saiu_para_entrega: 'entregue' }
-const ROTULO: Record<string, string> = { em_preparo: 'Iniciar preparo', saiu_para_entrega: 'Saiu para entrega', entregue: 'Marcar como entregue' }
+const ROTULO: Record<string, string> = { pronto: 'Pedido pronto', em_preparo: 'Iniciar preparo', saiu_para_entrega: 'Saiu para entrega', entregue: 'Marcar como entregue' }
 const PAG: Record<string, string> = { pix: 'Pix na entrega', dinheiro: 'Dinheiro', cartao: 'Cartão na entrega' }
-const ABERTOS = ['novo', 'em_preparo', 'saiu_para_entrega']
+const ABERTOS = ['novo', 'em_preparo', 'pronto', 'saiu_para_entrega']
 const DIAS = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado']
 const HM = (v: string) => v ? v.slice(0, 5) : ''
 // Registra uma linha no log de atividades da loja (aba Loja > Exportar log). Não trava a
@@ -125,7 +125,7 @@ export default function Painel() {
   return logado ? <Area /> : <Login />
 }
 
-function Login() {
+export function Login() {
   const [email, setEmail] = useState('')
   const [senha, setSenha] = useState('')
   const [erro, setErro] = useState('')
@@ -258,7 +258,7 @@ function Area() {
   return (
     <div className="mx-auto min-h-screen max-w-3xl bg-neutral-50 pb-16">
       <header className="flex flex-wrap items-center justify-between gap-2 bg-[#1B2A4A] px-4 py-3 text-white">
-        <div><p className="font-bold">{loja.nome}</p><a className="text-sm underline" href={`/${loja.slug}`} target="_blank" rel="noreferrer">Ver cardápio</a></div>
+        <div><p className="font-bold">{loja.nome}</p><a className="text-sm underline" href={`/${loja.slug}`} target="_blank" rel="noreferrer">Ver cardápio</a> · <a className="text-sm underline" href="/monitor" target="_blank" rel="noreferrer">Abrir monitor</a></div>
         <div className="flex flex-wrap items-center gap-3">
           <button onClick={alternar} className={`rounded-full px-4 py-2 font-bold ${loja.aberta ? 'bg-[#1A7F37]' : 'bg-red-700'}`}>{loja.aberta ? 'Loja aberta' : 'Loja fechada'}</button>
           <button onClick={alternarSom} aria-pressed={som} className={`flex items-center gap-2 rounded-full border-2 px-3 py-2 font-bold ${som ? 'border-white text-white' : 'border-neutral-400 text-neutral-300'}`}>
@@ -368,7 +368,8 @@ function Pedidos({ loja, versao, impAuto, alternarImp, modo = 'geral', buscaMesa
       {mostrados.length === 0 && <p className="rounded-xl bg-white p-6 text-center text-neutral-600">{modo === 'mesas' && buscaMesa ? `Nenhum pedido da mesa ${buscaMesa} por aqui.` : 'Nenhum pedido por aqui.'}</p>}
       <div className={modo === 'mesas' ? 'grid gap-3 sm:grid-cols-2' : 'space-y-3'}>
         {mostrados.map(p => {
-          const prox = p.status === 'em_preparo' && p.tipo !== 'entrega' ? 'entregue' : PROXIMO[p.status]
+          // Mesa e retirada: em preparo → pronto (aparece no /monitor) → entregue
+          const prox = p.tipo !== 'entrega' && p.status === 'em_preparo' ? 'pronto' : p.status === 'pronto' ? 'entregue' : PROXIMO[p.status]
           return (
             <article key={p.id} className="rounded-xl border border-neutral-200 bg-white p-4 shadow-sm">
               {p.tipo === 'mesa' && <p className="mb-2 inline-block rounded-lg bg-[#1B2A4A] px-3 py-1 text-lg font-extrabold text-white">Mesa {p.mesa}</p>}
