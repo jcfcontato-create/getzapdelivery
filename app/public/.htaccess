@@ -5,3 +5,25 @@ RewriteRule ^index\.html$ - [L]
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
 RewriteRule . /index.html [L]
+
+# index.html e config.js nunca podem ficar guardados em cache (nem no navegador, nem em
+# cache do servidor) — é a porta de entrada do app, e tem sempre o mesmo nome. Sem isso,
+# depois de cada deploy, quem já tinha visitado o cardápio continua vendo a versão antiga
+# até o cache expirar sozinho (foi o que aconteceu ao atualizar o design da Adega S.O.S).
+<IfModule mod_headers.c>
+  <FilesMatch "^(index\.html|config\.js)$">
+    Header set Cache-Control "no-cache, no-store, must-revalidate"
+    Header set Pragma "no-cache"
+    Header set Expires 0
+  </FilesMatch>
+</IfModule>
+
+# Já os arquivos dentro de /assets/ têm um código único no nome que muda sempre que o
+# conteúdo muda (ex.: index-cuIRigc0.js) — esses sim podem ficar em cache por muito
+# tempo sem risco, porque um arquivo novo sempre tem um nome novo. Fica numa regra à
+# parte (por pasta, não por extensão) pra nunca correr o risco de pegar o config.js junto.
+<IfModule mod_headers.c>
+  <If "%{REQUEST_URI} =~ m#^/assets/#">
+    Header set Cache-Control "public, max-age=31536000, immutable"
+  </If>
+</IfModule>
