@@ -153,6 +153,7 @@ function Area() {
   const [loja, setLoja] = useState<Loja | null>(null)
   const [msg, setMsg] = useState('')
   const [aba, setAba] = useState<Aba>('pedidos')
+  const [subLoja, setSubLoja] = useState<'dados' | 'bairros'>('dados')
   const [som, setSom] = useState(() => { try { return localStorage.getItem('gz_som') !== '0' } catch { return true } })
   const [travado, setTravado] = useState(false)
   const [aviso, setAviso] = useState('')
@@ -248,7 +249,7 @@ function Area() {
       <button className={claro} onClick={sair}>Sair</button>
     </main>
   )
-  const abas: [Aba, string][] = [['pedidos', 'Pedidos'], ['cardapio', 'Cardápio'], ['adicionais', 'Adicionais'], ['bairros', 'Bairros'], ['relatorios', 'Relatórios'], ['loja', 'Loja']]
+  const abas: [Aba, string][] = [['pedidos', 'Pedidos'], ['cardapio', 'Cardápio'], ['adicionais', 'Adicionais'], ['relatorios', 'Relatórios'], ['loja', 'Loja']]
   return (
     <div className="mx-auto min-h-screen max-w-3xl bg-neutral-50 pb-16">
       <header className="flex flex-wrap items-center justify-between gap-2 bg-[#1B2A4A] px-4 py-3 text-white">
@@ -280,12 +281,22 @@ function Area() {
         {aba === 'pedidos' && <Pedidos loja={loja} versao={versao} impAuto={imprimir} alternarImp={alternarImp} />}
         {aba === 'cardapio' && <AbaCardapio loja={loja} />}
         {aba === 'adicionais' && <AbaAdicionais loja={loja} />}
-        {aba === 'bairros' && <AbaBairros loja={loja} />}
         {aba === 'relatorios' && <AbaRelatorios loja={loja} />}
         {aba === 'loja' && (<>
-          <AbaLoja loja={loja} salvo={setLoja} />
-          <div className="mt-4"><Horarios loja={loja} /></div>
-          <div className="mt-4"><ExportarLog loja={loja} /></div>
+          <div role="tablist" aria-label="Seções da loja" className="mb-4 flex gap-2">
+            {([['dados', 'Dados da loja'], ['bairros', 'Bairros e taxas']] as const).map(([id, nome]) => (
+              <button key={id} role="tab" aria-selected={subLoja === id} onClick={() => setSubLoja(id)}
+                className={`rounded-full px-4 py-2 text-sm font-semibold ${subLoja === id ? 'bg-[#1B2A4A] text-white' : 'border border-neutral-300 bg-white text-neutral-700'}`}>
+                {nome}
+              </button>
+            ))}
+          </div>
+          {subLoja === 'dados' && (<>
+            <AbaLoja loja={loja} salvo={setLoja} />
+            <div className="mt-4"><Horarios loja={loja} /></div>
+            <div className="mt-4"><ExportarLog loja={loja} /></div>
+          </>)}
+          {subLoja === 'bairros' && <AbaBairros loja={loja} />}
         </>)}
       </main>
     </div>
