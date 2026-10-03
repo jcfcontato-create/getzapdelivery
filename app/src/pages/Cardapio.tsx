@@ -677,8 +677,8 @@ function ModalAdicionais({ produto, grupos, itensPorGrupo, cor, fechar, adiciona
   const totalLinha = (produto.preco + totalAdicionais) * qtdProduto
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 sm:items-center" role="dialog" aria-modal="true">
-      <div className="max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-t-2xl bg-white p-4 sm:rounded-2xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-3 py-6" role="dialog" aria-modal="true">
+      <div className="max-h-[75vh] max-h-[75dvh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white p-4 pb-0 shadow-2xl">
         <div className="mb-3 flex items-start justify-between gap-2">
           <div>
             <h2 className="text-lg font-bold">{produto.nome}</h2>
@@ -751,9 +751,11 @@ function ModalAdicionais({ produto, grupos, itensPorGrupo, cor, fechar, adiciona
 
         {!podeAdicionar && <p className="mt-3 text-sm text-red-700">Escolha uma opção em: {faltamObrigatorios.map(g => g.nome).join(', ')}.</p>}
 
-        <button onClick={confirmar} disabled={!podeAdicionar} className="mt-4 w-full rounded-lg py-3 font-bold disabled:opacity-40" style={{ background: cor, color: texto(cor) }}>
-          Adicionar ao pedido - {R(totalLinha)}
-        </button>
+        <div className="sticky bottom-0 -mx-4 mt-4 bg-white px-4 pb-4 pt-2 shadow-[0_-8px_12px_-8px_rgba(0,0,0,.15)]">
+          <button onClick={confirmar} disabled={!podeAdicionar} className="w-full rounded-lg py-3 font-bold disabled:opacity-40" style={{ background: cor, color: texto(cor) }}>
+            Adicionar ao pedido - {R(totalLinha)}
+          </button>
+        </div>
       </div>
     </div>
   )
@@ -764,8 +766,8 @@ function ModalAdicionais({ produto, grupos, itensPorGrupo, cor, fechar, adiciona
 // Cada categoria sugerida vem em sua própria seção, nunca misturada com as outras.
 function ModalSugestao({ secoes, cor, fechar, adicionar }: { secoes: { categoria: Categoria; produtos: Produto[] }[]; cor: string; fechar: () => void; adicionar: (p: Produto) => void }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 sm:items-center" role="dialog" aria-modal="true">
-      <div className="max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-t-2xl bg-white p-4 sm:rounded-2xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-3 py-6" role="dialog" aria-modal="true">
+      <div className="max-h-[75vh] max-h-[75dvh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white p-4 pb-0 shadow-2xl">
         <div className="mb-3 flex items-start justify-between gap-2">
           <h2 className="text-lg font-bold">Que tal adicionar também?</h2>
           <button aria-label="Fechar" onClick={fechar} className="text-2xl leading-none text-neutral-500">&times;</button>
@@ -789,7 +791,9 @@ function ModalSugestao({ secoes, cor, fechar, adicionar }: { secoes: { categoria
             </div>
           ))}
         </div>
-        <button type="button" onClick={fechar} className="mt-4 w-full rounded-lg border border-neutral-400 py-3 font-bold">Não, obrigado</button>
+        <div className="sticky bottom-0 -mx-4 mt-4 bg-white px-4 pb-4 pt-2">
+          <button type="button" onClick={fechar} className="w-full rounded-lg border border-neutral-400 py-3 font-bold">Não, obrigado</button>
+        </div>
       </div>
     </div>
   )
