@@ -275,7 +275,9 @@ export default function Cardapio() {
     if (catsSugeridas.length === 0) return
     const secoes = cats
       .filter(c => catsSugeridas.includes(c.id))
-      .map(c => ({ categoria: c, produtos: prods.filter(x => x.id !== produtoId && x.categoria_id === c.id) }))
+      // Dentro de cada seção, do mais barato para o mais caro (empate: ordem alfabética)
+      .map(c => ({ categoria: c, produtos: prods.filter(x => x.id !== produtoId && x.categoria_id === c.id)
+        .sort((a, b) => a.preco - b.preco || a.nome.localeCompare(b.nome, 'pt-BR')) }))
       .filter(s => s.produtos.length > 0)
     if (secoes.length > 0) setSugestaoAberta(secoes)
   }
