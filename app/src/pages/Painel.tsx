@@ -2,7 +2,7 @@ import { type FormEvent, useCallback, useEffect, useRef, useState } from 'react'
 import QRCode from 'qrcode'
 import { supabase } from '../lib/supabase'
 
-type Loja = { id: string; slug: string; nome: string; whatsapp: string; aberta: boolean; aceita_retirada: boolean; endereco: string | null; impressora: string | null; logo_url: string | null; banner_celular_url: string | null; banner_pc_url: string | null; email: string | null; cpf_cnpj: string | null; imprime_via_cozinha: boolean; vias_impressao: number; plataforma_ativa: boolean; cor: string }
+type Loja = { id: string; slug: string; nome: string; whatsapp: string; aberta: boolean; aceita_retirada: boolean; endereco: string | null; impressora: string | null; logo_url: string | null; banner_celular_url: string | null; banner_pc_url: string | null; cidade: string | null; uf: string | null; cep: string | null; tipo_cozinha: string | null; descricao_seo: string | null; email: string | null; cpf_cnpj: string | null; imprime_via_cozinha: boolean; vias_impressao: number; plataforma_ativa: boolean; cor: string }
 type ItemAdEscolhido = { nome: string; qtd: number; preco_unit: number }
 type Item = { id: string; nome: string; qtd: number; preco_unit: number; itens_pedido_adicionais: ItemAdEscolhido[] }
 type Pedido = { id: string; numero: number; status: string; cliente_nome: string; cliente_telefone: string; tipo: string; mesa?: number | null; bairro: string | null; endereco: string | null; pagamento: string; troco_para: string | null; observacao: string | null; subtotal: number; taxa_entrega: number; desconto: number; cupom_codigo: string | null; total: number; criado_em: string; itens_pedido: Item[] }
@@ -234,7 +234,7 @@ function Area() {
   useEffect(() => {
     ;(async () => {
       const { data: s } = await supabase.auth.getSession()
-      const { data, error } = await supabase.from('membros').select('lojas(id,slug,nome,whatsapp,aberta,aceita_retirada,endereco,impressora,logo_url,banner_celular_url,banner_pc_url,email,cpf_cnpj,imprime_via_cozinha,vias_impressao,plataforma_ativa,cor)').eq('user_id', s.session?.user.id).limit(1)
+      const { data, error } = await supabase.from('membros').select('lojas(id,slug,nome,whatsapp,aberta,aceita_retirada,endereco,impressora,logo_url,banner_celular_url,banner_pc_url,cidade,uf,cep,tipo_cozinha,descricao_seo,email,cpf_cnpj,imprime_via_cozinha,vias_impressao,plataforma_ativa,cor)').eq('user_id', s.session?.user.id).limit(1)
       if (error) setMsg(error.message)
       else if (!data || !data.length) setMsg('Este usuário ainda não está vinculado a uma loja. Fale com o suporte do GetZap.')
       else setLoja((data[0] as any).lojas)
@@ -1102,10 +1102,17 @@ function CampoBanner({ titulo, medidas, valor, mudar, erro }: { titulo: string; 
   )
 }
 
+const UFS = ['AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MT', 'MS', 'MG', 'PA', 'PB', 'PR', 'PE', 'PI', 'RJ', 'RN', 'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO']
+
 function AbaLoja({ loja, salvo }: { loja: Loja; salvo: (l: Loja) => void }) {
   const [nomeLoja, setNomeLoja] = useState(loja.nome)
   const [whatsapp, setWhatsapp] = useState(loja.whatsapp)
   const [endereco, setEndereco] = useState(loja.endereco ?? '')
+  const [cidade, setCidade] = useState(loja.cidade ?? '')
+  const [uf, setUf] = useState(loja.uf ?? '')
+  const [cep, setCep] = useState(loja.cep ?? '')
+  const [tipoCozinha, setTipoCozinha] = useState(loja.tipo_cozinha ?? '')
+  const [descricaoSeo, setDescricaoSeo] = useState(loja.descricao_seo ?? '')
   const [retirada, setRetirada] = useState(loja.aceita_retirada)
   const [impressora, setImpressora] = useState(loja.impressora ?? '')
   const [imprimeViaCozinha, setImprimeViaCozinha] = useState(loja.imprime_via_cozinha)
@@ -1164,6 +1171,7 @@ function AbaLoja({ loja, salvo }: { loja: Loja; salvo: (l: Loja) => void }) {
   async function salvar(e: FormEvent) {
     e.preventDefault(); setOk(false)
     if (!nomeLoja.trim()) return setErro('Informe o nome do restaurante.')
+    if (cep && !/^[0-9]{5}-[0-9]{3}$/.test(cep)) return setErro('CEP: use o formato 00000-000.')
     if (!/^[0-9]{12,13}$/.test(whatsapp)) return setErro('WhatsApp: use só números, com 55 e o DDD. Exemplo: 5511940104824.')
     if (!/^#[0-9a-fA-F]{6}$/.test(cor)) return setErro('Cor do tema: use um código no formato #RRGGBB, por exemplo #7C4CAF.')
     let logo_url = logoUrl
@@ -1191,7 +1199,7 @@ function AbaLoja({ loja, salvo }: { loja: Loja; salvo: (l: Loja) => void }) {
     const banner_pc_url = await enviarBanner(bannerPc, 'banner-pc')
     if (banner_pc_url === undefined) return
     const vias = Math.min(5, Math.max(1, Number(viasImpressao) || 1))
-    const dados = { nome: nomeLoja.trim(), banner_celular_url, banner_pc_url, whatsapp, endereco: endereco.trim() || null, aceita_retirada: retirada, impressora: impressora.trim() || null, logo_url, email: email.trim() || null, cpf_cnpj: cpfCnpj.trim() || null, imprime_via_cozinha: imprimeViaCozinha, vias_impressao: vias, cor }
+    const dados = { nome: nomeLoja.trim(), banner_celular_url, banner_pc_url, whatsapp, endereco: endereco.trim() || null, cidade: cidade.trim() || null, uf: uf || null, cep: cep || null, tipo_cozinha: tipoCozinha.trim() || null, descricao_seo: descricaoSeo.trim() || null, aceita_retirada: retirada, impressora: impressora.trim() || null, logo_url, email: email.trim() || null, cpf_cnpj: cpfCnpj.trim() || null, imprime_via_cozinha: imprimeViaCozinha, vias_impressao: vias, cor }
     const { error } = await supabase.from('lojas').update(dados).eq('id', loja.id)
     if (error) return setErro(error.message)
     setErro(''); setOk(true); setLogoArquivo(null); setLogoPreview(null); setLogoUrl(logo_url); setBannerCel({ url: banner_celular_url, arquivo: null, preview: null }); setBannerPc({ url: banner_pc_url, arquivo: null, preview: null }); setViasImpressao(String(vias)); salvo({ ...loja, ...dados })
@@ -1250,6 +1258,26 @@ function AbaLoja({ loja, salvo }: { loja: Loja; salvo: (l: Loja) => void }) {
         <input className={campo} inputMode="numeric" value={whatsapp} onChange={e => setWhatsapp(e.target.value.replace(/\D/g, ''))} /></label>
       <label className="block"><span className="font-semibold">Endereço da loja</span>
         <input className={campo} value={endereco} onChange={e => setEndereco(e.target.value)} /></label>
+      <div className="grid grid-cols-[1fr_5rem] gap-2 sm:grid-cols-[1fr_5rem_8rem]">
+        <label className="block"><span className="font-semibold">Cidade</span>
+          <input className={campo} placeholder="Ex.: Bom Jesus dos Perdões" value={cidade} onChange={e => setCidade(e.target.value)} /></label>
+        <label className="block"><span className="font-semibold">UF</span>
+          <select className={campo} value={uf} onChange={e => setUf(e.target.value)}>
+            <option value="">--</option>
+            {UFS.map(u => <option key={u} value={u}>{u}</option>)}
+          </select></label>
+        <label className="col-span-2 block sm:col-span-1"><span className="font-semibold">CEP</span>
+          <input className={campo} inputMode="numeric" placeholder="00000-000" value={cep} onChange={e => { const d = e.target.value.replace(/\D/g, '').slice(0, 8); setCep(d.length > 5 ? `${d.slice(0, 5)}-${d.slice(5)}` : d) }} /></label>
+      </div>
+      <div className="space-y-3 rounded-xl border border-neutral-200 bg-neutral-50 p-3">
+        <span className="block font-semibold">Aparecer no Google e nas IAs</span>
+        <p className="text-sm text-neutral-600">Esses dados, junto com cidade, UF, CEP e os nomes dos pratos (bebidas não entram), formam a página que o Google e as IAs leem para mostrar sua loja em buscas locais. A atualização acontece sozinha a cada 30 minutos.</p>
+        <label className="block"><span className="font-semibold">Tipo de cozinha</span>
+          <input className={campo} placeholder="Ex.: Açaí, Marmitas, Lanches, Pizzaria" value={tipoCozinha} onChange={e => setTipoCozinha(e.target.value)} /></label>
+        <label className="block"><span className="font-semibold">Descrição curta</span>
+          <textarea className={campo} maxLength={300} rows={3} placeholder="Ex.: Marmitas caseiras e açaí com entrega rápida no centro de Bom Jesus dos Perdões." value={descricaoSeo} onChange={e => setDescricaoSeo(e.target.value)} />
+          <span className="mt-1 block text-right text-xs text-neutral-500">{descricaoSeo.length}/300</span></label>
+      </div>
       <label className="block"><span className="font-semibold">E-mail</span>
         <input type="email" className={campo} placeholder="contato@sualoja.com.br" value={email} onChange={e => setEmail(e.target.value)} /></label>
       <label className="block"><span className="font-semibold">CPF ou CNPJ</span>

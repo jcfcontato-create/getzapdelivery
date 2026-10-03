@@ -5,6 +5,10 @@ on:
     branches: [main]
   workflow_dispatch: {}
 
+concurrency:
+  group: publicar-site
+  cancel-in-progress: false
+
 jobs:
   publicar:
     runs-on: self-hosted
@@ -31,6 +35,13 @@ jobs:
       - name: Buildar o app (cardapio + painel + admin)
         working-directory: app
         run: npm run build
+
+      - name: Gerar páginas de SEO das lojas (Google e IAs)
+        continue-on-error: true
+        run: node tools/gerar-seo.mjs app/dist
+        env:
+          SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
 
       - name: Publicar os arquivos no servidor
         run: |

@@ -2,6 +2,12 @@
 RewriteEngine On
 RewriteBase /
 RewriteRule ^index\.html$ - [L]
+
+# SEO: se existir a página pronta da loja (gerada por tools/gerar-seo.mjs em /seo/),
+# entrega ela no endereço normal do cardápio (ex.: /big-acai). O app abre por cima igual.
+RewriteCond %{REQUEST_URI} ^/([a-z0-9-]+)/?$
+RewriteCond %{DOCUMENT_ROOT}/seo/%1.html -f
+RewriteRule ^([a-z0-9-]+)/?$ /seo/$1.html [L]
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
 RewriteRule . /index.html [L]
@@ -11,7 +17,7 @@ RewriteRule . /index.html [L]
 # depois de cada deploy, quem já tinha visitado o cardápio continua vendo a versão antiga
 # até o cache expirar sozinho (foi o que aconteceu ao atualizar o design da Adega S.O.S).
 <IfModule mod_headers.c>
-  <FilesMatch "^(index\.html|config\.js)$">
+  <FilesMatch "(\.html|config\.js|sitemap\.xml|robots\.txt)$">
     Header set Cache-Control "no-cache, no-store, must-revalidate"
     Header set Pragma "no-cache"
     Header set Expires 0
