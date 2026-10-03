@@ -1,16 +1,17 @@
 import { type FormEvent, useCallback, useEffect, useRef, useState } from 'react'
+import QRCode from 'qrcode'
 import { supabase } from '../lib/supabase'
 
 type Loja = { id: string; slug: string; nome: string; whatsapp: string; aberta: boolean; aceita_retirada: boolean; endereco: string | null; impressora: string | null; logo_url: string | null; banner_celular_url: string | null; banner_pc_url: string | null; email: string | null; cpf_cnpj: string | null; imprime_via_cozinha: boolean; vias_impressao: number; plataforma_ativa: boolean; cor: string }
 type ItemAdEscolhido = { nome: string; qtd: number; preco_unit: number }
 type Item = { id: string; nome: string; qtd: number; preco_unit: number; itens_pedido_adicionais: ItemAdEscolhido[] }
-type Pedido = { id: string; numero: number; status: string; cliente_nome: string; cliente_telefone: string; tipo: string; bairro: string | null; endereco: string | null; pagamento: string; troco_para: string | null; observacao: string | null; subtotal: number; taxa_entrega: number; desconto: number; cupom_codigo: string | null; total: number; criado_em: string; itens_pedido: Item[] }
+type Pedido = { id: string; numero: number; status: string; cliente_nome: string; cliente_telefone: string; tipo: string; mesa?: number | null; bairro: string | null; endereco: string | null; pagamento: string; troco_para: string | null; observacao: string | null; subtotal: number; taxa_entrega: number; desconto: number; cupom_codigo: string | null; total: number; criado_em: string; itens_pedido: Item[] }
 type Cat = { id: string; nome: string; ordem: number }
 type Prod = { id: string; categoria_id: string; nome: string; descricao: string | null; preco: number; ativo: boolean; foto_url: string | null; dias_semana: number[] | null }
 type Zona = { id: string; bairro: string; taxa: number }
 type Grupo = { id: string; nome: string; tipo: 'unica' | 'multipla'; obrigatorio: boolean; maximo: number | null }
 type ItemAd = { id: string; grupo_id: string; nome: string; preco: number; permite_quantidade: boolean; quantidade_maxima: number; ativo: boolean }
-type Aba = 'pedidos' | 'cardapio' | 'adicionais' | 'bairros' | 'loja' | 'relatorios'
+type Aba = 'pedidos' | 'mesas' | 'cardapio' | 'adicionais' | 'bairros' | 'loja' | 'relatorios'
 type Horario = { dia_semana: number; abre: string | null; fecha: string | null; fechado: boolean }
 type FormaPagamento = { id: string; nome: string; aceita_troco: boolean; ordem: number }
 type Rede = 'instagram' | 'facebook' | 'tiktok' | 'youtube' | 'twitter' | 'whatsapp' | 'site'
@@ -56,6 +57,7 @@ const Sino = ({ off }: { off: boolean }) => (
 const IconAba = ({ id }: { id: Aba }) => {
   const p = { viewBox: '0 0 24 24', className: 'h-5 w-5 shrink-0', fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const, 'aria-hidden': true }
   if (id === 'pedidos') return <svg {...p}><rect x="9" y="3" width="6" height="4" rx="1" /><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2" /><path d="M9 12h6M9 16h6" /></svg>
+  if (id === 'mesas') return <svg {...p}><path d="M3 9h18M5 9v11M19 9v11M8 9V5h8v4" /></svg>
   if (id === 'cardapio') return <svg {...p}><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" /><path d="M8 7h8M8 11h8" /></svg>
   if (id === 'adicionais') return <svg {...p}><circle cx="12" cy="12" r="9" /><path d="M12 8v8M8 12h8" /></svg>
   if (id === 'bairros') return <svg {...p}><path d="M12 21s-7-6.2-7-11a7 7 0 0 1 14 0c0 4.8-7 11-7 11z" /><circle cx="12" cy="10" r="2.5" /></svg>
@@ -82,7 +84,7 @@ td{vertical-align:top;padding:1px 0}.d{text-align:right;white-space:nowrap}.b{fo
 <h2>${titulo ?? 'PEDIDO #' + p.numero}</h2>
 <p>${data}</p><hr>
 <p class="b">${esc(p.cliente_nome)}</p>${semPreco ? '' : `<p>${esc(p.cliente_telefone)}</p>`}
-<p>${p.tipo === 'entrega' ? `ENTREGA: ${esc(p.endereco ?? '')}, ${esc(p.bairro ?? '')}` : 'RETIRADA NA LOJA'}</p><hr>
+<p${p.tipo === 'mesa' ? ' class="b" style="font-size:17px"' : ''}>${p.tipo === 'entrega' ? `ENTREGA: ${esc(p.endereco ?? '')}, ${esc(p.bairro ?? '')}` : p.tipo === 'mesa' ? `MESA ${p.mesa ?? ''}` : 'RETIRADA NA LOJA'}</p><hr>
 <table>${linhas}</table><hr>
 ${totais}
 ${p.observacao ? `<p>Obs: ${esc(p.observacao)}</p>` : ''}
@@ -157,6 +159,7 @@ function Area() {
   const [som, setSom] = useState(() => { try { return localStorage.getItem('gz_som') !== '0' } catch { return true } })
   const [travado, setTravado] = useState(false)
   const [aviso, setAviso] = useState('')
+  const [avisoAba, setAvisoAba] = useState<Aba>('pedidos')
   const [versao, setVersao] = useState(0)
   const [imprimir, setImprimir] = useState(() => { try { return localStorage.getItem('gz_imp') === '1' } catch { return false } })
   const imprimirRef = useRef(imprimir)
@@ -204,12 +207,14 @@ function Area() {
   useEffect(() => {
     if (!loja) return
     const checar = async () => {
-      const { data } = await supabase.from('pedidos').select('id,numero').eq('loja_id', loja.id).eq('status', 'novo')
+      const { data } = await supabase.from('pedidos').select('id,numero,tipo,mesa').eq('loja_id', loja.id).eq('status', 'novo')
       if (!data) return
       if (conhecidos.current) {
         const novos = data.filter((p: any) => !conhecidos.current!.has(p.id))
         if (novos.length) {
-          setAviso(novos.length === 1 ? `Novo pedido #${novos[0].numero}` : `Novos pedidos: ${novos.map((p: any) => '#' + p.numero).join(', ')}`)
+          const rot = (p: any) => '#' + p.numero + (p.tipo === 'mesa' ? ` (Mesa ${p.mesa})` : '')
+          setAviso(novos.length === 1 ? `Novo pedido ${rot(novos[0])}` : `Novos pedidos: ${novos.map(rot).join(', ')}`)
+          setAvisoAba(novos.every((p: any) => p.tipo === 'mesa') ? 'mesas' : 'pedidos')
           setVersao(v => v + 1)
           if (somRef.current) tocar()
           if (imprimirRef.current) {
@@ -249,7 +254,7 @@ function Area() {
       <button className={claro} onClick={sair}>Sair</button>
     </main>
   )
-  const abas: [Aba, string][] = [['pedidos', 'Pedidos'], ['cardapio', 'Cardápio'], ['adicionais', 'Adicionais'], ['relatorios', 'Relatórios'], ['loja', 'Loja']]
+  const abas: [Aba, string][] = [['pedidos', 'Pedidos'], ['mesas', 'Mesas'], ['cardapio', 'Cardápio'], ['adicionais', 'Adicionais'], ['relatorios', 'Relatórios'], ['loja', 'Loja']]
   return (
     <div className="mx-auto min-h-screen max-w-3xl bg-neutral-50 pb-16">
       <header className="flex flex-wrap items-center justify-between gap-2 bg-[#1B2A4A] px-4 py-3 text-white">
@@ -264,7 +269,7 @@ function Area() {
       </header>
       <nav className="flex border-b border-neutral-200 bg-white">
         {abas.map(([id, nome]) => (
-          <button key={id} onClick={() => { setAba(id); if (id === 'pedidos') setAviso('') }} aria-current={aba === id} title={nome} aria-label={nome} className={`flex flex-1 flex-col items-center justify-center gap-1 py-2 font-semibold sm:flex-row sm:py-3 ${aba === id ? 'border-b-4 border-[#1A7F37] text-[#1B2A4A]' : 'text-neutral-600'}`}>
+          <button key={id} onClick={() => { setAba(id); if (id === avisoAba) setAviso('') }} aria-current={aba === id} title={nome} aria-label={nome} className={`flex flex-1 flex-col items-center justify-center gap-1 py-2 font-semibold sm:flex-row sm:py-3 ${aba === id ? 'border-b-4 border-[#1A7F37] text-[#1B2A4A]' : 'text-neutral-600'}`}>
             <IconAba id={id} /><span className="hidden sm:inline">{nome}</span>
           </button>
         ))}
@@ -274,11 +279,12 @@ function Area() {
         {aviso && (
           <div role="alert" className="mb-3 flex items-center justify-between gap-3 rounded-lg bg-[#1A7F37] p-3 font-bold text-white">
             <span>{aviso}</span>
-            <button className="rounded bg-white px-3 py-1 text-[#1B2A4A]" onClick={() => { setAba('pedidos'); setAviso('') }}>Ver</button>
+            <button className="rounded bg-white px-3 py-1 text-[#1B2A4A]" onClick={() => { setAba(avisoAba); setAviso('') }}>Ver</button>
           </div>
         )}
         <Erro m={msg} />
         {aba === 'pedidos' && <Pedidos loja={loja} versao={versao} impAuto={imprimir} alternarImp={alternarImp} />}
+        {aba === 'mesas' && <AbaMesas loja={loja} versao={versao} />}
         {aba === 'cardapio' && <AbaCardapio loja={loja} />}
         {aba === 'adicionais' && <AbaAdicionais loja={loja} />}
         {aba === 'relatorios' && <AbaRelatorios loja={loja} />}
@@ -303,7 +309,7 @@ function Area() {
   )
 }
 
-function Pedidos({ loja, versao, impAuto, alternarImp }: { loja: Loja; versao: number; impAuto: boolean; alternarImp: () => void }) {
+function Pedidos({ loja, versao, impAuto, alternarImp, modo = 'geral', buscaMesa = '' }: { loja: Loja; versao: number; impAuto?: boolean; alternarImp?: () => void; modo?: 'geral' | 'mesas'; buscaMesa?: string }) {
   const [lista, setLista] = useState<Pedido[]>([])
   const [ver, setVer] = useState<'andamento' | 'finalizados'>('andamento')
   const [erro, setErro] = useState('')
@@ -342,32 +348,36 @@ function Pedidos({ loja, versao, impAuto, alternarImp }: { loja: Loja; versao: n
     const { error } = await supabase.from('pedidos').delete().eq('id', p.id)
     if (error) setErro(error.message); else { carregar(); registrarLog(loja.id, `Pedido #${p.numero} excluído`) }
   }
-  const mostrados = lista.filter(p => ABERTOS.includes(p.status) === (ver === 'andamento'))
+  const mostrados = lista.filter(p => ABERTOS.includes(p.status) === (ver === 'andamento')
+    && (modo === 'mesas' ? p.tipo === 'mesa' && (!buscaMesa || String(p.mesa) === buscaMesa) : p.tipo !== 'mesa'))
   return (
     <section>
       <div className="mb-3 flex gap-2">
         <button className={ver === 'andamento' ? botao : claro} onClick={() => setVer('andamento')}>Em andamento</button>
         <button className={ver === 'finalizados' ? botao : claro} onClick={() => setVer('finalizados')}>Finalizados</button>
       </div>
+      {modo === 'geral' && alternarImp && (<>
       <div className="mb-2 flex flex-wrap items-center gap-2">
         <button aria-pressed={impAuto} onClick={alternarImp} className={impAuto ? botao : claro}>Impressão automática: {impAuto ? 'ligada' : 'desligada'}</button>
         <button className={claro} onClick={() => imprimirConformeConfig(pedidoTeste, loja)}>Imprimir teste</button>
       </div>
       {impAuto && <p className="mb-2 text-sm text-neutral-600">Cada pedido novo é impresso assim que chega. Para não abrir a janela de impressão a cada pedido, configure o navegador do computador da loja para imprimir direto.</p>}
+      </>)}
       <p className="mb-3 text-sm text-neutral-600">A lista atualiza sozinha a cada 15 segundos.</p>
       <Erro m={erro} />
-      {mostrados.length === 0 && <p className="rounded-xl bg-white p-6 text-center text-neutral-600">Nenhum pedido por aqui.</p>}
-      <div className="space-y-3">
+      {mostrados.length === 0 && <p className="rounded-xl bg-white p-6 text-center text-neutral-600">{modo === 'mesas' && buscaMesa ? `Nenhum pedido da mesa ${buscaMesa} por aqui.` : 'Nenhum pedido por aqui.'}</p>}
+      <div className={modo === 'mesas' ? 'grid gap-3 sm:grid-cols-2' : 'space-y-3'}>
         {mostrados.map(p => {
-          const prox = p.status === 'em_preparo' && p.tipo === 'retirada' ? 'entregue' : PROXIMO[p.status]
+          const prox = p.status === 'em_preparo' && p.tipo !== 'entrega' ? 'entregue' : PROXIMO[p.status]
           return (
             <article key={p.id} className="rounded-xl border border-neutral-200 bg-white p-4 shadow-sm">
+              {p.tipo === 'mesa' && <p className="mb-2 inline-block rounded-lg bg-[#1B2A4A] px-3 py-1 text-lg font-extrabold text-white">Mesa {p.mesa}</p>}
               <div className="flex justify-between gap-2">
                 <h3 className="font-bold">#{p.numero} - {p.cliente_nome}</h3>
                 <span className="text-sm text-neutral-600">{new Date(p.criado_em).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>
               </div>
               <p className="text-sm font-semibold">{STATUS[p.status]}</p>
-              <p className="text-sm text-neutral-600">{p.tipo === 'entrega' ? `Entrega: ${p.endereco}, ${p.bairro}` : 'Retirada na loja'}</p>
+              <p className="text-sm text-neutral-600">{p.tipo === 'entrega' ? `Entrega: ${p.endereco}, ${p.bairro}` : p.tipo === 'mesa' ? `Pedido na mesa ${p.mesa}` : 'Retirada na loja'}</p>
               {(() => { const editavel = !['entregue', 'cancelado'].includes(p.status); return (<>
               <ul className="my-2">{p.itens_pedido.map((i, k) => (
                 <li key={k} className="flex items-start justify-between gap-2">
@@ -399,6 +409,90 @@ function Pedidos({ loja, versao, impAuto, alternarImp }: { loja: Loja; versao: n
           )
         })}
       </div>
+    </section>
+  )
+}
+
+// Abre a janela de impressão com o QR Code de cada mesa (aponta para o cardápio já com ?mesa=N)
+async function imprimirQrMesas(loja: Loja, numeros: number[]) {
+  const base = `${window.location.origin}/${loja.slug}`
+  const cartoes = await Promise.all(numeros.map(async n => {
+    const img = await QRCode.toDataURL(`${base}?mesa=${n}`, { width: 480, margin: 1 })
+    return `<div class="c"><p class="l">${esc(loja.nome)}</p><img src="${img}" alt=""><p class="m">MESA ${n}</p><p class="t">Aponte a câmera do celular para ver o cardápio e fazer seu pedido</p></div>`
+  }))
+  const html = `<!doctype html><html><head><meta charset="utf-8"><title>QR Codes das mesas</title><style>
+@page{size:A4;margin:10mm}body{font-family:Arial,Helvetica,sans-serif;margin:0}
+.g{display:flex;flex-wrap:wrap;gap:8mm}.c{width:88mm;border:1px dashed #999;border-radius:4mm;padding:5mm;text-align:center;break-inside:avoid}
+img{width:62mm;height:62mm}.l{font-weight:bold;font-size:15px;margin:0 0 2mm}.m{font-size:28px;font-weight:900;margin:2mm 0 1mm}.t{font-size:11px;margin:0;color:#333}
+</style></head><body><div class="g">${cartoes.join('')}</div></body></html>`
+  const f = document.createElement('iframe')
+  f.style.cssText = 'position:fixed;left:0;top:0;width:210mm;height:1px;opacity:0;pointer-events:none;border:0'
+  f.srcdoc = html
+  f.onload = () => { f.contentWindow?.focus(); f.contentWindow?.print(); setTimeout(() => f.remove(), 60000) }
+  document.body.appendChild(f)
+}
+
+function AbaMesas({ loja, versao }: { loja: Loja; versao: number }) {
+  const [mesas, setMesas] = useState<{ id: string; numero: number }[]>([])
+  const [erro, setErro] = useState('')
+  const [de, setDe] = useState('')
+  const [ate, setAte] = useState('')
+  const [busca, setBusca] = useState('')
+  const carregar = useCallback(async () => {
+    const { data, error } = await supabase.from('mesas').select('id,numero').eq('loja_id', loja.id).order('numero')
+    if (error) setErro(error.message); else setMesas(data ?? [])
+  }, [loja.id])
+  useEffect(() => { carregar() }, [carregar])
+  async function adicionar(e: FormEvent) {
+    e.preventDefault()
+    const ini = parseInt(de, 10), fim = ate.trim() ? parseInt(ate, 10) : ini
+    if (!ini || ini < 1) return setErro('Informe o número da mesa.')
+    if (!fim || fim < ini) return setErro('O número final precisa ser maior ou igual ao inicial.')
+    if (fim - ini >= 200) return setErro('Cadastre no máximo 200 mesas de uma vez.')
+    const existentes = new Set(mesas.map(m => m.numero))
+    const novas = Array.from({ length: fim - ini + 1 }, (_, k) => ini + k).filter(n => !existentes.has(n))
+    if (novas.length === 0) return setErro(ini === fim ? `A mesa ${ini} já está cadastrada.` : 'Essas mesas já estão cadastradas.')
+    const { error } = await supabase.from('mesas').insert(novas.map(numero => ({ loja_id: loja.id, numero })))
+    if (error) return setErro(error.message)
+    registrarLog(loja.id, novas.length === 1 ? `Mesa ${novas[0]} cadastrada` : `Mesas ${novas[0]} a ${novas[novas.length - 1]} cadastradas`)
+    setErro(''); setDe(''); setAte(''); carregar()
+  }
+  async function remover(m: { id: string; numero: number }) {
+    if (!confirm(`Remover a mesa ${m.numero}? Os pedidos antigos dessa mesa continuam guardados.`)) return
+    const { error } = await supabase.from('mesas').delete().eq('id', m.id)
+    if (error) setErro(error.message); else { registrarLog(loja.id, `Mesa ${m.numero} removida`); carregar() }
+  }
+  const buscaLimpa = busca.replace(/\D/g, '')
+  const mesasMostradas = buscaLimpa ? mesas.filter(m => String(m.numero) === buscaLimpa) : mesas
+  return (
+    <section className="space-y-4">
+      <div className="space-y-3 rounded-xl border border-neutral-200 bg-white p-3">
+        <span className="block font-semibold">Mesas da loja</span>
+        <p className="text-sm text-neutral-600">Cadastre as mesas e imprima o QR Code de cada uma. O cliente aponta a câmera, abre o cardápio e, no fim do pedido, a opção <b>Mesa</b> já vem marcada com o número certo.</p>
+        <form onSubmit={adicionar} className="flex flex-wrap items-end gap-2">
+          <label className="block"><span className="mb-1 block text-sm">Mesa nº</span>
+            <input className={campo + ' w-24'} inputMode="numeric" placeholder="Ex.: 1" value={de} onChange={e => setDe(e.target.value.replace(/\D/g, ''))} /></label>
+          <label className="block"><span className="mb-1 block text-sm">até (opcional)</span>
+            <input className={campo + ' w-24'} inputMode="numeric" placeholder="Ex.: 10" value={ate} onChange={e => setAte(e.target.value.replace(/\D/g, ''))} /></label>
+          <button className={botao}>Adicionar</button>
+        </form>
+        <p className="text-xs text-neutral-500">Para cadastrar várias de uma vez, preencha "até" (ex.: 1 até 10).</p>
+        <Erro m={erro} />
+        {mesas.length > 0 && (
+          <div className="flex flex-wrap items-center gap-2">
+            {mesasMostradas.map(m => (
+              <span key={m.id} className="flex items-center gap-1 rounded-full border border-neutral-300 bg-neutral-50 py-1 pl-3 pr-1 text-sm font-semibold">
+                Mesa {m.numero}
+                <button type="button" className="rounded-full px-2 py-0.5 text-xs underline" onClick={() => imprimirQrMesas(loja, [m.numero])}>QR</button>
+                <button type="button" aria-label={`Remover mesa ${m.numero}`} className="rounded-full px-2 py-0.5 text-red-700" onClick={() => remover(m)}>×</button>
+              </span>
+            ))}
+            <button type="button" className={claro + ' text-sm'} onClick={() => imprimirQrMesas(loja, mesas.map(m => m.numero))}>Imprimir QR de todas as mesas</button>
+          </div>
+        )}
+      </div>
+      <input className={campo} inputMode="numeric" placeholder="Buscar mesa pelo número..." value={busca} onChange={e => setBusca(e.target.value)} />
+      <Pedidos loja={loja} versao={versao} modo="mesas" buscaMesa={buscaLimpa} />
     </section>
   )
 }

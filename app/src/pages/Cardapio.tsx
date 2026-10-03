@@ -14,10 +14,10 @@ type ItemAd = { id: string; grupo_id: string; nome: string; preco: number; permi
 type FormaPagamento = { id: string; nome: string; aceita_troco: boolean }
 type Selecao = { item_id: string; nome: string; preco: number; qtd: number }
 type LinhaCarrinho = { id: string; produto: Produto; qtd: number; selecoes: Selecao[] }
-type Form = { nome: string; telefone: string; tipo: string; bairro: string; rua: string; numero: string; complemento: string; pagamento: string; troco: string; obs: string }
+type Form = { nome: string; telefone: string; tipo: string; mesa: string; bairro: string; rua: string; numero: string; complemento: string; pagamento: string; troco: string; obs: string }
 
 const R = (n: number) => n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
-const vazio: Form = { nome: '', telefone: '', tipo: 'entrega', bairro: '', rua: '', numero: '', complemento: '', pagamento: '', troco: '', obs: '' }
+const vazio: Form = { nome: '', telefone: '', tipo: 'entrega', mesa: '', bairro: '', rua: '', numero: '', complemento: '', pagamento: '', troco: '', obs: '' }
 const enderecoCompleto = (f: Form) => `${f.rua.trim()}, ${f.numero.trim()}${f.complemento.trim() ? ` - ${f.complemento.trim()}` : ''}`
 const campo = 'w-full rounded-lg border border-neutral-300 px-3 py-2'
 const rotulo = 'mb-1 block text-sm font-semibold text-neutral-800'
@@ -105,7 +105,14 @@ export default function Cardapio() {
   const [erro, setErro] = useState('')
   const [carrinho, setCarrinho] = useState<LinhaCarrinho[]>([])
   const [etapa, setEtapa] = useState<'menu' | 'checkout' | 'ok'>('menu')
-  const [f, setF] = useState<Form>(vazio)
+  const [mesas, setMesas] = useState<number[]>([])
+  // Pedido de mesa já enviado (sem WhatsApp): guarda número do pedido e da mesa para a tela de confirmação
+  const [pedidoMesa, setPedidoMesa] = useState<{ numero: number; mesa: string } | null>(null)
+  // QR Code da mesa abre o cardápio com ?mesa=N: já deixa o checkout em "Mesa" com o número preenchido
+  const [f, setF] = useState<Form>(() => {
+    const m = new URLSearchParams(window.location.search).get('mesa')?.replace(/\D/g, '')
+    return m ? { ...vazio, tipo: 'mesa', mesa: m } : vazio
+  })
   const [enviando, setEnviando] = useState(false)
   const [zap, setZap] = useState('')
   const [produtoModal, setProdutoModal] = useState<Produto | null>(null)
@@ -125,6 +132,7 @@ export default function Cardapio() {
       if (!l.plataforma_ativa) { setErro('Este cardápio está temporariamente indisponível.'); setCarga(false); return }
       document.title = `${l.nome} | Cardápio`
       setLoja(l)
+      supabase.from('mesas').select('numero').eq('loja_id', l.id).order('numero').then(({ data }) => setMesas((data ?? []).map((x: any) => x.numero)))
       const [c, p, z, fp, rs, g, i, h] = await Promise.all([
         supabase.from('categorias').select('id,nome').eq('loja_id', l.id).order('ordem'),
         supabase.from('produtos').select('id,categoria_id,nome,descricao,preco,foto_url,dias_semana').eq('loja_id', l.id).eq('ativo', true).order('ordem'),
@@ -288,16 +296,24 @@ export default function Cardapio() {
   async function enviar(e: FormEvent) {
     e.preventDefault()
     if (!loja) return
+    if (f.tipo === 'mesa' && !mesas.includes(Number(f.mesa))) { setErro('Mesa não encontrada. Confira o número da mesa.'); return }
     setEnviando(true); setErro('')
     // O servidor recalcula preços, adicionais e taxa: o navegador não define valores.
     const { data, error } = await supabase.rpc('criar_pedido', {
       p_slug: slug,
-      p_cliente: { nome: f.nome, telefone: f.telefone, tipo: f.tipo, bairro: f.bairro, rua: f.rua, numero: f.numero, complemento: f.complemento, endereco: enderecoCompleto(f), pagamento: f.pagamento, troco: f.troco, obs: f.obs },
+      p_cliente: { nome: f.nome, telefone: f.telefone, tipo: f.tipo, mesa: f.tipo === 'mesa' ? f.mesa : null, bairro: f.bairro, rua: f.rua, numero: f.numero, complemento: f.complemento, endereco: enderecoCompleto(f), pagamento: f.pagamento, troco: f.troco, obs: f.obs },
       p_itens: carrinho.map(l => ({ produto_id: l.produto.id, qtd: l.qtd, adicionais: l.selecoes.map(s => ({ item_id: s.item_id, qtd: s.qtd })) })),
       p_cupom_codigo: cupom?.codigo ?? null,
     })
     setEnviando(false)
     if (error) { setErro(error.message); return }
+    // Pedido de mesa vai direto para o painel (aba Mesas): não precisa abrir o WhatsApp
+    if (f.tipo === 'mesa') {
+      setPedidoMesa({ numero: data.numero, mesa: f.mesa }); setZap(''); setEtapa('ok'); setCarrinho([])
+      setCupom(null); setCupomCodigo('')
+      return
+    }
+    setPedidoMesa(null)
     const linhas = [
       `*Novo pedido #${data.numero}* - ${loja.nome}`, '',
       ...carrinho.flatMap(l => [
@@ -461,8 +477,16 @@ export default function Cardapio() {
             <select className={campo} value={f.tipo} onChange={e => set('tipo', e.target.value)}>
               <option value="entrega">Entrega</option>
               {loja.aceita_retirada && <option value="retirada">Retirar na loja</option>}
+              {(mesas.length > 0 || f.tipo === 'mesa') && <option value="mesa">Mesa (estou no local)</option>}
             </select>
           </label>
+          {f.tipo === 'mesa' && (
+            <label className="block">
+              <span className={rotulo}>Informe o número da mesa</span>
+              <input required className={campo} inputMode="numeric" placeholder="Ex.: 5" value={f.mesa} onChange={e => set('mesa', e.target.value.replace(/\D/g, '').slice(0, 6))} />
+              {f.mesa && mesas.length > 0 && !mesas.includes(Number(f.mesa)) && <span className="mt-1 block text-sm text-red-700">Mesa {f.mesa} não encontrada. Confira o número na mesa.</span>}
+            </label>
+          )}
           {f.tipo === 'retirada' && loja.endereco && <p className="text-sm">Retirada em: {loja.endereco}</p>}
           {f.tipo === 'entrega' && (<>
             <label className="block">
@@ -534,8 +558,13 @@ export default function Cardapio() {
       {etapa === 'ok' && (
         <main className="space-y-3 px-4 py-8">
           <h2 className="text-2xl font-bold">Pedido enviado!</h2>
-          <p>Se o WhatsApp não abriu, toque no botão e envie a mensagem para a loja.</p>
-          <a href={zap} className="inline-block rounded-lg px-4 py-3 font-bold" style={{ background: cor, color: texto(cor) }}>Abrir WhatsApp</a>
+          {pedidoMesa ? (<>
+            <p>Seu pedido <b>#{pedidoMesa.numero}</b> foi enviado para a cozinha. Assim que estiver pronto, levamos até a <b>mesa {pedidoMesa.mesa}</b>.</p>
+            <button type="button" onClick={() => { setPedidoMesa(null); setEtapa('menu') }} className="inline-block rounded-lg px-4 py-3 font-bold" style={{ background: cor, color: texto(cor) }}>Fazer outro pedido</button>
+          </>) : (<>
+            <p>Se o WhatsApp não abriu, toque no botão e envie a mensagem para a loja.</p>
+            <a href={zap} className="inline-block rounded-lg px-4 py-3 font-bold" style={{ background: cor, color: texto(cor) }}>Abrir WhatsApp</a>
+          </>)}
         </main>
       )}
 
