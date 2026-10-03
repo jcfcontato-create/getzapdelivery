@@ -2,7 +2,7 @@ import { type FormEvent, useEffect, useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 
-type Loja = { id: string; nome: string; whatsapp: string; aberta: boolean; aceita_retirada: boolean; cor: string; endereco: string | null; logo_url: string | null; cpf_cnpj: string | null; plataforma_ativa: boolean }
+type Loja = { id: string; nome: string; whatsapp: string; aberta: boolean; aceita_retirada: boolean; cor: string; endereco: string | null; logo_url: string | null; banner_celular_url: string | null; banner_pc_url: string | null; cpf_cnpj: string | null; plataforma_ativa: boolean }
 type Rede = 'instagram' | 'facebook' | 'tiktok' | 'youtube' | 'twitter' | 'whatsapp' | 'site'
 type RedeSocial = { rede: Rede; url: string }
 type Categoria = { id: string; nome: string }
@@ -20,10 +20,29 @@ const R = (n: number) => n.toLocaleString('pt-BR', { style: 'currency', currency
 const vazio: Form = { nome: '', telefone: '', tipo: 'entrega', bairro: '', rua: '', numero: '', complemento: '', pagamento: '', troco: '', obs: '' }
 const enderecoCompleto = (f: Form) => `${f.rua.trim()}, ${f.numero.trim()}${f.complemento.trim() ? ` - ${f.complemento.trim()}` : ''}`
 const campo = 'w-full rounded-lg border border-neutral-300 px-3 py-2'
+const rotulo = 'mb-1 block text-sm font-semibold text-neutral-800'
+
+// Máscara de celular: (xx) xxxxx-xxxx — e (xx) xxxx-xxxx enquanto tiver só 10 dígitos
+function mascaraTelefone(v: string) {
+  const d = v.replace(/\D/g, '').slice(0, 11)
+  if (d.length <= 2) return d.length ? `(${d}` : ''
+  if (d.length <= 6) return `(${d.slice(0, 2)}) ${d.slice(2)}`
+  if (d.length <= 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`
+  return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`
+}
 // Texto preto ou branco, conforme a cor da loja, para manter a leitura nos botões
 const texto = (hex: string) => {
   const n = parseInt(hex.slice(1), 16)
   return 0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255) > 150 ? '#000' : '#fff'
+}
+// Cor da loja para texto sobre fundo branco: se for muito clara (ex.: amarelo), escurece para continuar legível
+const corLegivel = (hex: string) => {
+  const n = parseInt(hex.slice(1), 16)
+  const lum = 0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)
+  if (lum <= 170) return hex
+  const f = 170 / lum
+  const c = (v: number) => Math.round(v * f).toString(16).padStart(2, '0')
+  return `#${c(n >> 16)}${c((n >> 8) & 255)}${c(n & 255)}`
 }
 const linhaTotal = (l: LinhaCarrinho) => (l.produto.preco + l.selecoes.reduce((s, x) => s + x.preco * x.qtd, 0)) * l.qtd
 // Sem horário cadastrado para o dia (dono ainda não configurou): não bloqueia sozinho,
@@ -100,7 +119,7 @@ export default function Cardapio() {
 
   useEffect(() => {
     ;(async () => {
-      const { data: l, error: e } = await supabase.from('lojas').select('id,nome,whatsapp,aberta,aceita_retirada,cor,endereco,logo_url,cpf_cnpj,plataforma_ativa').eq('slug', slug).maybeSingle()
+      const { data: l, error: e } = await supabase.from('lojas').select('id,nome,whatsapp,aberta,aceita_retirada,cor,endereco,logo_url,banner_celular_url,banner_pc_url,cpf_cnpj,plataforma_ativa').eq('slug', slug).maybeSingle()
       if (e) { setErro(`Não foi possível carregar a loja: ${e.message}`); setCarga(false); return }
       if (!l) { setErro('Loja não encontrada.'); setCarga(false); return }
       if (!l.plataforma_ativa) { setErro('Este cardápio está temporariamente indisponível.'); setCarga(false); return }
@@ -305,9 +324,12 @@ export default function Cardapio() {
 
   return (
     <div className="mx-auto min-h-screen max-w-2xl bg-white pb-28 text-neutral-900">
-      <div className="flex items-center justify-between gap-3 bg-black px-4 py-3">
-        {loja.logo_url ? <img src={loja.logo_url} alt={loja.nome} className="h-10 w-10 shrink-0 rounded-full object-cover" /> : <span />}
-        <div className="flex items-center gap-4 text-white">
+      <div className="flex items-center justify-between gap-3 px-4 py-3" style={{ background: cor, color: texto(cor) }}>
+        <div className="flex min-w-0 items-center gap-3">
+          {loja.logo_url && <img src={loja.logo_url} alt="" className="h-10 w-10 shrink-0 rounded-full object-cover" />}
+          <span className="truncate text-lg font-bold">{loja.nome}</span>
+        </div>
+        <div className="flex shrink-0 items-center gap-4">
           <button type="button" aria-label="Compartilhar cardápio" onClick={compartilhar}><IconeCompartilhar /></button>
           {etapa === 'menu' && (
             <button type="button" aria-label="Buscar produto" onClick={() => setBuscaAberta(v => !v)}><IconeBusca /></button>
@@ -315,19 +337,38 @@ export default function Cardapio() {
         </div>
       </div>
       {buscaAberta && etapa === 'menu' && (
-        <div className="bg-black px-4 pb-3">
+        <div className="px-4 pb-3" style={{ background: cor }}>
           <input autoFocus className={campo} placeholder="Buscar produto pelo nome..." value={busca} onChange={e => setBusca(e.target.value)} />
         </div>
       )}
-      <header className="flex flex-col items-center gap-1 bg-black px-4 py-5 text-center">
-        <h1 className="text-2xl font-bold" style={{ color: cor }}>{loja.nome}</h1>
-        <p className="text-sm text-white">{podeReceberPedido ? 'Aberto agora' : 'Fechado no momento'}</p>
-        {horario.texto && <p className="text-sm text-neutral-300">{horario.texto}</p>}
-        {loja.endereco && <p className="text-sm text-neutral-300">{loja.endereco}</p>}
+      <header>
+        <h1 className="sr-only">{loja.nome}</h1>
+        {(loja.banner_celular_url || loja.banner_pc_url) && (
+          <picture>
+            {loja.banner_pc_url && <source media="(min-width: 640px)" srcSet={loja.banner_pc_url} />}
+            <img src={loja.banner_celular_url || loja.banner_pc_url || ''} alt="" className="block h-auto w-full" />
+          </picture>
+        )}
+        {(horario.texto || loja.endereco) && (
+        <div className="flex flex-col items-center gap-1 px-4 py-3 text-center text-sm sm:flex-row sm:justify-center sm:gap-4" style={{ background: cor, color: texto(cor) }}>
+          {horario.texto && (
+            <p className="flex items-center gap-1.5">
+              <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>
+              {horario.texto}
+            </p>
+          )}
+          {loja.endereco && (
+            <p className="flex items-center gap-1.5">
+              <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21Z" /><circle cx="12" cy="9.5" r="2.5" /></svg>
+              {loja.endereco}
+            </p>
+          )}
+        </div>
+      )}
       </header>
 
       {etapa === 'menu' && (
-        <main className="px-4">
+        <main className="bg-neutral-100 px-4 pb-6 pt-1">
           {!podeReceberPedido && (
             <p role="status" className="my-4 rounded-lg bg-red-100 p-3 text-red-800">
               A loja está fechada{horario.texto ? ` (${horario.texto.toLowerCase()})` : ''}. Você pode ver o cardápio, mas ainda não dá para pedir.
@@ -339,30 +380,39 @@ export default function Cardapio() {
             if (produtosCategoria.length === 0) return null
             return (
             <section key={c.id} className="mt-6">
-              <h2 className="text-xl font-bold">{c.nome}</h2>
+              <h2 className="mb-3 flex items-center gap-2 text-xl font-bold">
+                <span className="h-6 w-1.5 rounded-full" style={{ background: cor }} aria-hidden="true" />
+                {c.nome}
+              </h2>
+              <div className="space-y-3">
               {produtosCategoria.map(p => {
                 const temAdicionais = gruposDoProduto(p.id).length > 0
                 const linhaSimples = carrinho.find(l => l.produto.id === p.id && l.selecoes.length === 0)
                 const qtdOutrasLinhas = carrinho.filter(l => l.produto.id === p.id && l.selecoes.length > 0).reduce((s, l) => s + l.qtd, 0)
                 return (
-                  <div key={p.id} className="flex items-center gap-3 border-b border-neutral-200 py-3">
-                    {p.foto_url && <img src={p.foto_url} alt="" className="h-16 w-16 rounded-lg object-cover" />}
-                    <div className="flex-1">
-                      <p className="font-semibold">{p.nome}</p>
-                      {p.descricao && <p className="text-sm text-neutral-600">{p.descricao}</p>}
-                      <p className="font-bold">{precoAPartir(p) != null ? `A partir de ${R(precoAPartir(p)!)}` : R(p.preco)}</p>
+                  <div key={p.id} className="flex items-center gap-3 rounded-2xl border border-neutral-200 bg-white p-3 shadow-sm">
+                    {p.foto_url && <img src={p.foto_url} alt="" className="h-20 w-20 shrink-0 rounded-xl object-cover" />}
+                    <div className="min-w-0 flex-1">
+                      <p className="font-bold leading-tight">{p.nome}</p>
+                      {p.descricao && <p className="mt-0.5 line-clamp-2 text-sm text-neutral-600">{p.descricao}</p>}
+                      <p className="mt-1 text-base font-extrabold" style={{ color: corLegivel(cor) }}>{precoAPartir(p) != null ? `A partir de ${R(precoAPartir(p)!)}` : R(p.preco)}</p>
                       {qtdOutrasLinhas > 0 && <p className="text-xs text-neutral-500">{qtdOutrasLinhas} no carrinho com adicionais</p>}
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex shrink-0 items-center gap-2">
                       {!temAdicionais && linhaSimples && linhaSimples.qtd > 0 && (<>
-                        <button aria-label={`Remover ${p.nome}`} onClick={() => mudarQtdSimples(p.id, -1)} className="h-9 w-9 rounded-full border border-neutral-400">-</button>
-                        <span>{linhaSimples.qtd}</span>
+                        <button aria-label={`Remover ${p.nome}`} onClick={() => mudarQtdSimples(p.id, -1)} className="flex h-9 w-9 items-center justify-center rounded-full border-2 transition active:scale-90" style={{ borderColor: cor, color: corLegivel(cor) }}>
+                          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" aria-hidden="true"><path d="M5 12h14" /></svg>
+                        </button>
+                        <span className="min-w-5 text-center text-lg font-extrabold">{linhaSimples.qtd}</span>
                       </>)}
-                      <button aria-label={`Adicionar ${p.nome}`} onClick={() => abrirProduto(p)} disabled={!podeReceberPedido} className="h-9 w-9 rounded-full disabled:opacity-40" style={{ background: cor, color: texto(cor) }}>+</button>
+                      <button aria-label={`Adicionar ${p.nome}`} onClick={() => abrirProduto(p)} disabled={!podeReceberPedido} className="flex h-12 w-12 items-center justify-center rounded-full shadow-md transition hover:brightness-110 active:scale-90 disabled:opacity-40 disabled:shadow-none" style={{ background: cor, color: texto(cor) }}>
+                        <svg viewBox="0 0 24 24" className="h-7 w-7" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+                      </button>
                     </div>
                   </div>
                 )
               })}
+              </div>
             </section>
             )
           })}
@@ -397,34 +447,67 @@ export default function Cardapio() {
               {l.selecoes.map((s, k) => <p key={k} className="pl-9 text-sm text-neutral-600">+ {s.qtd}x {s.nome}{s.preco > 0 && ` (${R(s.preco)})`}</p>)}
             </div>
           ))}
-          <input required className={campo} placeholder="Seu nome" value={f.nome} onChange={e => set('nome', e.target.value)} />
-          <input required className={campo} placeholder="Telefone com DDD" inputMode="tel" value={f.telefone} onChange={e => { set('telefone', e.target.value); setAutoPreenchido(false) }} onBlur={buscarCliente} />
+          <label className="block">
+            <span className={rotulo}>WhatsApp / Telefone</span>
+            <input required className={campo} placeholder="(11) 99999-9999" inputMode="tel" autoComplete="tel" pattern="\(\d{2}\) \d{4,5}-\d{4}" title="Digite o telefone com DDD: (xx) xxxxx-xxxx" value={f.telefone} onChange={e => { set('telefone', mascaraTelefone(e.target.value)); setAutoPreenchido(false) }} onBlur={buscarCliente} />
+          </label>
           {autoPreenchido && <p className="text-sm text-green-700">Encontramos seu cadastro! Preenchemos os dados do seu último pedido — pode ajustar o que precisar.</p>}
-          <select className={campo} value={f.tipo} onChange={e => set('tipo', e.target.value)}>
-            <option value="entrega">Entrega</option>
-            {loja.aceita_retirada && <option value="retirada">Retirar na loja</option>}
-          </select>
+          <label className="block">
+            <span className={rotulo}>Nome</span>
+            <input required className={campo} placeholder="Seu nome" autoComplete="name" value={f.nome} onChange={e => set('nome', e.target.value)} />
+          </label>
+          <label className="block">
+            <span className={rotulo}>Entrega ou retirada</span>
+            <select className={campo} value={f.tipo} onChange={e => set('tipo', e.target.value)}>
+              <option value="entrega">Entrega</option>
+              {loja.aceita_retirada && <option value="retirada">Retirar na loja</option>}
+            </select>
+          </label>
           {f.tipo === 'retirada' && loja.endereco && <p className="text-sm">Retirada em: {loja.endereco}</p>}
           {f.tipo === 'entrega' && (<>
-            <select required className={campo} value={f.bairro} onChange={e => set('bairro', e.target.value)}>
-              <option value="">Escolha o bairro</option>
-              {zonas.map(z => <option key={z.bairro} value={z.bairro}>{z.bairro} ({R(z.taxa)})</option>)}
-            </select>
-            <input required className={campo} placeholder="Rua" value={f.rua} onChange={e => set('rua', e.target.value)} />
+            <label className="block">
+              <span className={rotulo}>Bairro</span>
+              <select required className={campo} value={f.bairro} onChange={e => set('bairro', e.target.value)}>
+                <option value="">Escolha o bairro</option>
+                {zonas.map(z => <option key={z.bairro} value={z.bairro}>{z.bairro} ({R(z.taxa)})</option>)}
+              </select>
+            </label>
+            <label className="block">
+              <span className={rotulo}>Rua</span>
+              <input required className={campo} placeholder="Nome da rua" value={f.rua} onChange={e => set('rua', e.target.value)} />
+            </label>
             <div className="grid grid-cols-2 gap-2">
-              <input required className={campo} placeholder="Número" value={f.numero} onChange={e => set('numero', e.target.value)} />
-              <input className={campo} placeholder="Complemento (opcional)" value={f.complemento} onChange={e => set('complemento', e.target.value)} />
+              <label className="block">
+                <span className={rotulo}>Número</span>
+                <input required className={campo} placeholder="Ex.: 123" value={f.numero} onChange={e => set('numero', e.target.value)} />
+              </label>
+              <label className="block">
+                <span className={rotulo}>Complemento</span>
+                <input className={campo} placeholder="Opcional" value={f.complemento} onChange={e => set('complemento', e.target.value)} />
+              </label>
             </div>
           </>)}
-          <select required className={campo} value={f.pagamento} onChange={e => set('pagamento', e.target.value)}>
-            {formasPag.length === 0 && <option value="">Nenhuma forma de pagamento cadastrada</option>}
-            {formasPag.map(fp => <option key={fp.id} value={fp.nome}>{fp.nome}</option>)}
-          </select>
-          {formaSelecionada?.aceita_troco && <input className={campo} placeholder="Troco para quanto? (opcional)" value={f.troco} onChange={e => set('troco', e.target.value)} />}
-          <textarea className={campo} placeholder="Observações (opcional)" value={f.obs} onChange={e => set('obs', e.target.value)} />
+          <label className="block">
+            <span className={rotulo}>Forma de pagamento</span>
+            <select required className={campo} value={f.pagamento} onChange={e => set('pagamento', e.target.value)}>
+              {formasPag.length === 0 && <option value="">Nenhuma forma de pagamento cadastrada</option>}
+              {formasPag.map(fp => <option key={fp.id} value={fp.nome}>{fp.nome}</option>)}
+            </select>
+          </label>
+          {formaSelecionada?.aceita_troco && (
+            <label className="block">
+              <span className={rotulo}>Troco para quanto?</span>
+              <input className={campo} placeholder="Opcional" value={f.troco} onChange={e => set('troco', e.target.value)} />
+            </label>
+          )}
+          <label className="block">
+            <span className={rotulo}>Observações</span>
+            <textarea className={campo} placeholder="Opcional" value={f.obs} onChange={e => set('obs', e.target.value)} />
+          </label>
           <div>
+            <span className={rotulo}>Cupom de desconto</span>
             <div className="flex gap-2">
-              <input className={campo} placeholder="Cupom de desconto" value={cupomCodigo} onChange={e => setCupomCodigo(e.target.value.toUpperCase())} disabled={!!cupom} />
+              <input className={campo} placeholder="Digite o código" aria-label="Cupom de desconto" value={cupomCodigo} onChange={e => setCupomCodigo(e.target.value.toUpperCase())} disabled={!!cupom} />
               {cupom ? (
                 <button type="button" onClick={removerCupom} className="shrink-0 rounded-lg border border-neutral-400 px-4 py-2 font-bold">Remover</button>
               ) : (
@@ -481,7 +564,7 @@ export default function Cardapio() {
       )}
 
       <footer className="mt-10 space-y-3 border-t border-neutral-200 bg-neutral-50 px-4 py-6 text-center text-sm text-neutral-600">
-        {loja.logo_url && <img src={loja.logo_url} alt={loja.nome} className="mx-auto h-12 w-12 rounded-full object-cover" />}
+        {loja.logo_url && <img src={loja.logo_url} alt={loja.nome} className="mx-auto h-24 w-24 rounded-full object-cover" />}
         <p className="font-semibold text-neutral-800">{loja.nome}</p>
         {loja.cpf_cnpj && <p>CNPJ/CPF: {loja.cpf_cnpj}</p>}
         {loja.endereco && <p>{loja.endereco}</p>}
@@ -494,6 +577,9 @@ export default function Cardapio() {
             ))}
           </div>
         )}
+        <p className="border-t border-neutral-200 pt-3 text-xs text-neutral-500">
+          Sistema desenvolvido por <a href="https://gestaoexpress.com.br/" target="_blank" rel="noopener noreferrer" className="font-semibold underline hover:text-neutral-800">Gestão Express</a>, quer um catálogo igual este clique <a href="https://getzapdelivery.com.br" target="_blank" rel="noopener noreferrer" className="font-semibold underline hover:text-neutral-800">aqui.</a>
+        </p>
       </footer>
     </div>
   )
