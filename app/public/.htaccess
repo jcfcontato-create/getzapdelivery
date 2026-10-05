@@ -3,6 +3,10 @@ RewriteEngine On
 RewriteBase /
 RewriteRule ^index\.html$ - [L]
 
+# Verificação do Google Search Console: o arquivo googleXXXX.html fica na raiz, mas também
+# responde dentro do endereço de cada loja (ex.: /big-acai/googleXXXX.html), para propriedades por loja.
+RewriteRule ^[a-z0-9-]+/(google[0-9a-f]+\.html)$ /$1 [L]
+
 # SEO: se existir a página pronta da loja (gerada por tools/gerar-seo.mjs em /seo/),
 # entrega ela no endereço normal do cardápio (ex.: /big-acai). O app abre por cima igual.
 RewriteCond %{REQUEST_URI} ^/([a-z0-9-]+)/?$
