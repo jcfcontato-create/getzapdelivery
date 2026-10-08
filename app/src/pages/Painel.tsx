@@ -5,10 +5,10 @@ import { supabase } from '../lib/supabase'
 type Loja = { id: string; slug: string; nome: string; whatsapp: string; aberta: boolean; aceita_retirada: boolean; endereco: string | null; impressora: string | null; logo_url: string | null; banner_celular_url: string | null; banner_pc_url: string | null; cidade: string | null; uf: string | null; cep: string | null; tipo_cozinha: string | null; descricao_seo: string | null; email: string | null; cpf_cnpj: string | null; imprime_via_cozinha: boolean; vias_impressao: number; plataforma_ativa: boolean; cor: string }
 type ItemAdEscolhido = { nome: string; qtd: number; preco_unit: number }
 type Item = { id: string; nome: string; qtd: number; preco_unit: number; itens_pedido_adicionais: ItemAdEscolhido[] }
-type Pedido = { id: string; numero: number; status: string; cliente_nome: string; cliente_telefone: string; tipo: string; mesa?: number | null; bairro: string | null; endereco: string | null; pagamento: string; troco_para: string | null; observacao: string | null; subtotal: number; taxa_entrega: number; desconto: number; cupom_codigo: string | null; total: number; criado_em: string; itens_pedido: Item[] }
+type Pedido = { id: string; numero: number; status: string; cliente_nome: string; cliente_telefone: string; tipo: string; mesa?: number | null; cidade?: string | null; bairro: string | null; endereco: string | null; pagamento: string; troco_para: string | null; observacao: string | null; subtotal: number; taxa_entrega: number; desconto: number; cupom_codigo: string | null; total: number; criado_em: string; itens_pedido: Item[] }
 type Cat = { id: string; nome: string; ordem: number }
 type Prod = { id: string; categoria_id: string; nome: string; descricao: string | null; preco: number; ativo: boolean; foto_url: string | null; dias_semana: number[] | null }
-type Zona = { id: string; bairro: string; taxa: number }
+type Zona = { id: string; cidade: string; bairro: string; taxa: number }
 type Grupo = { id: string; nome: string; tipo: 'unica' | 'multipla'; obrigatorio: boolean; maximo: number | null }
 type ItemAd = { id: string; grupo_id: string; nome: string; preco: number; permite_quantidade: boolean; quantidade_maxima: number; ativo: boolean }
 type Aba = 'pedidos' | 'mesas' | 'cardapio' | 'adicionais' | 'bairros' | 'loja' | 'relatorios'
@@ -84,7 +84,7 @@ td{vertical-align:top;padding:1px 0}.d{text-align:right;white-space:nowrap}.b{fo
 <h2>${titulo ?? 'PEDIDO #' + p.numero}</h2>
 <p>${data}</p><hr>
 <p class="b">${esc(p.cliente_nome)}</p>${semPreco ? '' : `<p>${esc(p.cliente_telefone)}</p>`}
-<p${p.tipo === 'mesa' ? ' class="b" style="font-size:17px"' : ''}>${p.tipo === 'entrega' ? `ENTREGA: ${esc(p.endereco ?? '')}, ${esc(p.bairro ?? '')}` : p.tipo === 'mesa' ? `MESA ${p.mesa ?? ''}` : 'RETIRADA NA LOJA'}</p><hr>
+<p${p.tipo === 'mesa' ? ' class="b" style="font-size:17px"' : ''}>${p.tipo === 'entrega' ? `ENTREGA: ${esc(p.endereco ?? '')}, ${esc(p.bairro ?? '')}${p.cidade ? ' - ' + esc(p.cidade) : ''}` : p.tipo === 'mesa' ? `MESA ${p.mesa ?? ''}` : 'RETIRADA NA LOJA'}</p><hr>
 <table>${linhas}</table><hr>
 ${totais}
 ${p.observacao ? `<p>Obs: ${esc(p.observacao)}</p>` : ''}
@@ -378,7 +378,7 @@ function Pedidos({ loja, versao, impAuto, alternarImp, modo = 'geral', buscaMesa
                 <span className="text-sm text-neutral-600">{new Date(p.criado_em).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>
               </div>
               <p className="text-sm font-semibold">{STATUS[p.status]}</p>
-              <p className="text-sm text-neutral-600">{p.tipo === 'entrega' ? `Entrega: ${p.endereco}, ${p.bairro}` : p.tipo === 'mesa' ? `Pedido na mesa ${p.mesa}` : 'Retirada na loja'}</p>
+              <p className="text-sm text-neutral-600">{p.tipo === 'entrega' ? `Entrega: ${p.endereco}, ${p.bairro}${p.cidade ? ` - ${p.cidade}` : ''}` : p.tipo === 'mesa' ? `Pedido na mesa ${p.mesa}` : 'Retirada na loja'}</p>
               {(() => { const editavel = !['entregue', 'cancelado'].includes(p.status); return (<>
               <ul className="my-2">{p.itens_pedido.map((i, k) => (
                 <li key={k} className="flex items-start justify-between gap-2">
@@ -853,7 +853,7 @@ function CategoriaLinha({ cat, loja, qtdProdutos, qtdAtivos, podeSubir, podeDesc
   )
 }
 
-function FormZona({ loja, z, feito, erro }: { loja: Loja; z?: Zona; feito: () => void; erro: (m: string) => void }) {
+function FormZona({ loja, cidade, z, feito, erro }: { loja: Loja; cidade: string; z?: Zona; feito: () => void; erro: (m: string) => void }) {
   const [bairro, setBairro] = useState(z?.bairro ?? '')
   const [taxa, setTaxa] = useState(z ? String(z.taxa).replace('.', ',') : '')
   async function salvar(e: FormEvent) {
@@ -861,10 +861,10 @@ function FormZona({ loja, z, feito, erro }: { loja: Loja; z?: Zona; feito: () =>
     const v = NUM(taxa)
     if (!bairro.trim() || taxa.trim() === '' || !(v >= 0)) return erro('Informe o bairro e a taxa de entrega.')
     const dados = { bairro: bairro.trim(), taxa: v }
-    const { error } = z ? await supabase.from('zonas_entrega').update(dados).eq('id', z.id) : await supabase.from('zonas_entrega').insert({ ...dados, loja_id: loja.id })
-    if (error) return erro(error.message)
+    const { error } = z ? await supabase.from('zonas_entrega').update(dados).eq('id', z.id) : await supabase.from('zonas_entrega').insert({ ...dados, cidade, loja_id: loja.id })
+    if (error) return erro(error.code === '23505' ? `O bairro "${dados.bairro}" já está cadastrado em ${cidade}.` : error.message)
     erro('')
-    registrarLog(loja.id, z ? `Bairro editado: "${dados.bairro}"` : `Bairro criado: "${dados.bairro}"`)
+    registrarLog(loja.id, z ? `Bairro editado: "${dados.bairro}" (${cidade})` : `Bairro criado: "${dados.bairro}" (${cidade})`)
     if (!z) { setBairro(''); setTaxa('') }
     feito()
   }
@@ -874,7 +874,7 @@ function FormZona({ loja, z, feito, erro }: { loja: Loja; z?: Zona; feito: () =>
     if (error) erro(error.message); else { registrarLog(loja.id, `Bairro excluído: "${z.bairro}"`); feito() }
   }
   return (
-    <form onSubmit={salvar} className="grid grid-cols-[1fr_7rem] gap-2 rounded-xl border border-neutral-200 bg-white p-3">
+    <form onSubmit={salvar} className={`grid grid-cols-[1fr_7rem] gap-2 rounded-xl border p-3 ${z ? 'border-neutral-200 bg-white' : 'border-dashed border-[#1A7F37] bg-green-50'}`}>
       <input className={campo} placeholder="Bairro" value={bairro} onChange={e => setBairro(e.target.value)} />
       <input className={campo} placeholder="Taxa, ex.: 5" inputMode="decimal" value={taxa} onChange={e => setTaxa(e.target.value)} />
       <div className="col-span-2 flex gap-2">
@@ -888,17 +888,83 @@ function FormZona({ loja, z, feito, erro }: { loja: Loja; z?: Zona; feito: () =>
 function AbaBairros({ loja }: { loja: Loja }) {
   const [zonas, setZonas] = useState<Zona[]>([])
   const [erro, setErro] = useState('')
+  const [novasCidades, setNovasCidades] = useState<string[]>([])
+  const [novaCidade, setNovaCidade] = useState('')
+  const [aberta, setAberta] = useState<string | null>(null)
+  const [busca, setBusca] = useState('')
   const carregar = useCallback(async () => {
-    const { data, error } = await supabase.from('zonas_entrega').select('id,bairro,taxa').eq('loja_id', loja.id).order('bairro')
+    const { data, error } = await supabase.from('zonas_entrega').select('id,cidade,bairro,taxa').eq('loja_id', loja.id).order('cidade').order('bairro')
     if (error) setErro(error.message); else setZonas(data as Zona[])
   }, [loja.id])
   useEffect(() => { carregar() }, [carregar])
+  const cidades = [...new Set([...zonas.map(z => z.cidade), ...novasCidades])].sort((a, b) => a.localeCompare(b, 'pt-BR'))
+  const cidadeAtual = aberta && cidades.includes(aberta) ? aberta : cidades[0] ?? null
+  function adicionarCidade(e: FormEvent) {
+    e.preventDefault()
+    const nome = novaCidade.trim().replace(/\s+/g, ' ')
+    if (!nome) return setErro('Digite o nome da cidade.')
+    const existente = cidades.find(c => c.toLocaleLowerCase('pt-BR') === nome.toLocaleLowerCase('pt-BR'))
+    if (!existente) setNovasCidades(c => [...c, nome])
+    setAberta(existente ?? nome); setNovaCidade(''); setErro('')
+  }
+  async function renomearCidade(antiga: string) {
+    const nova = prompt(`Novo nome para a cidade "${antiga}":`, antiga)?.trim().replace(/\s+/g, ' ')
+    if (!nova || nova === antiga) return
+    if (zonas.some(z => z.cidade === antiga)) {
+      const { error } = await supabase.from('zonas_entrega').update({ cidade: nova }).eq('loja_id', loja.id).eq('cidade', antiga)
+      if (error) return setErro(error.code === '23505' ? `Já existe em "${nova}" um bairro com o mesmo nome. Ajuste antes de renomear.` : error.message)
+      registrarLog(loja.id, `Cidade renomeada: "${antiga}" para "${nova}"`)
+    }
+    setNovasCidades(c => c.map(x => x === antiga ? nova : x)); setAberta(nova); setErro(''); carregar()
+  }
+  async function excluirCidade(cidade: string) {
+    const qtd = zonas.filter(z => z.cidade === cidade).length
+    if (qtd > 0 && !confirm(`Excluir a cidade "${cidade}" e os ${qtd} bairro(s) dela?`)) return
+    if (qtd > 0) {
+      const { error } = await supabase.from('zonas_entrega').delete().eq('loja_id', loja.id).eq('cidade', cidade)
+      if (error) return setErro(error.message)
+      registrarLog(loja.id, `Cidade excluída: "${cidade}" (${qtd} bairros)`)
+    }
+    setNovasCidades(c => c.filter(x => x !== cidade)); setAberta(null); setErro(''); carregar()
+  }
+  const buscaLimpa = busca.trim().toLocaleLowerCase('pt-BR')
+  const bairrosDaCidade = zonas.filter(z => z.cidade === cidadeAtual && (!buscaLimpa || z.bairro.toLocaleLowerCase('pt-BR').includes(buscaLimpa)))
   return (
-    <section className="space-y-3">
-      <p>Bairros atendidos e a taxa de entrega de cada um.</p>
+    <section className="space-y-4">
+      <p>Cadastre as cidades que você atende e, em cada uma, os bairros com a taxa de entrega. No pedido, o cliente escolhe primeiro a cidade e depois o bairro.</p>
       <Erro m={erro} />
-      <FormZona loja={loja} feito={carregar} erro={setErro} />
-      {zonas.map(z => <FormZona key={z.id + z.taxa + z.bairro} loja={loja} z={z} feito={carregar} erro={setErro} />)}
+      <form onSubmit={adicionarCidade} className="flex flex-wrap items-end gap-2 rounded-xl border border-neutral-200 bg-white p-3">
+        <label className="block flex-1"><span className="mb-1 block font-semibold">Nova cidade</span>
+          <input className={campo} placeholder={loja.cidade ? `Ex.: ${loja.cidade}` : 'Ex.: Atibaia'} value={novaCidade} onChange={e => setNovaCidade(e.target.value)} /></label>
+        <button className={botao}>Adicionar cidade</button>
+      </form>
+      {cidades.length === 0 && <p className="rounded-xl bg-white p-4 text-neutral-600">Nenhuma cidade cadastrada ainda. Comece adicionando a cidade da sua loja.</p>}
+      {cidades.length > 0 && (
+        <div role="tablist" aria-label="Cidades" className="flex flex-wrap gap-2">
+          {cidades.map(c => (
+            <button key={c} role="tab" aria-selected={c === cidadeAtual} onClick={() => { setAberta(c); setBusca('') }}
+              className={`rounded-full px-4 py-2 text-sm font-semibold ${c === cidadeAtual ? 'bg-[#1B2A4A] text-white' : 'border border-neutral-300 bg-white text-neutral-700'}`}>
+              {c} <span className="opacity-70">({zonas.filter(z => z.cidade === c).length})</span>
+            </button>
+          ))}
+        </div>
+      )}
+      {cidadeAtual && (
+        <div className="space-y-3 rounded-xl border border-neutral-200 bg-neutral-50 p-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h3 className="text-lg font-bold">Bairros de {cidadeAtual}</h3>
+            <div className="flex gap-2">
+              <button type="button" className={claro + ' text-sm'} onClick={() => renomearCidade(cidadeAtual)}>Renomear cidade</button>
+              <button type="button" className={claro + ' text-sm text-red-700'} onClick={() => excluirCidade(cidadeAtual)}>Excluir cidade</button>
+            </div>
+          </div>
+          <FormZona key={'novo-' + cidadeAtual} loja={loja} cidade={cidadeAtual} feito={carregar} erro={setErro} />
+          {zonas.some(z => z.cidade === cidadeAtual) && <input className={campo} placeholder="Buscar bairro..." value={busca} onChange={e => setBusca(e.target.value)} />}
+          {bairrosDaCidade.map(z => <FormZona key={z.id + z.taxa + z.bairro} loja={loja} cidade={cidadeAtual} z={z} feito={carregar} erro={setErro} />)}
+          {!zonas.some(z => z.cidade === cidadeAtual) && <p className="text-sm text-neutral-600">Essa cidade ainda não tem bairros. Ela só aparece para o cliente depois que você adicionar o primeiro bairro.</p>}
+          {buscaLimpa && bairrosDaCidade.length === 0 && zonas.some(z => z.cidade === cidadeAtual) && <p className="text-sm text-neutral-600">Nenhum bairro encontrado para "{busca.trim()}".</p>}
+        </div>
+      )}
     </section>
   )
 }

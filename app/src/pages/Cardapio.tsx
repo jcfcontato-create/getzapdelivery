@@ -7,17 +7,17 @@ type Rede = 'instagram' | 'facebook' | 'tiktok' | 'youtube' | 'twitter' | 'whats
 type RedeSocial = { rede: Rede; url: string }
 type Categoria = { id: string; nome: string }
 type Produto = { id: string; categoria_id: string; nome: string; descricao: string | null; preco: number; foto_url: string | null; dias_semana: number[] | null }
-type Zona = { bairro: string; taxa: number }
+type Zona = { cidade: string; bairro: string; taxa: number }
 type Horario = { dia_semana: number; abre: string | null; fecha: string | null; fechado: boolean }
 type Grupo = { id: string; nome: string; tipo: 'unica' | 'multipla'; obrigatorio: boolean; maximo: number | null }
 type ItemAd = { id: string; grupo_id: string; nome: string; preco: number; permite_quantidade: boolean; quantidade_maxima: number }
 type FormaPagamento = { id: string; nome: string; aceita_troco: boolean }
 type Selecao = { item_id: string; nome: string; preco: number; qtd: number }
 type LinhaCarrinho = { id: string; produto: Produto; qtd: number; selecoes: Selecao[] }
-type Form = { nome: string; telefone: string; tipo: string; mesa: string; bairro: string; rua: string; numero: string; complemento: string; pagamento: string; troco: string; obs: string }
+type Form = { nome: string; telefone: string; tipo: string; mesa: string; cidade: string; bairro: string; rua: string; numero: string; complemento: string; pagamento: string; troco: string; obs: string }
 
 const R = (n: number) => n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
-const vazio: Form = { nome: '', telefone: '', tipo: 'entrega', mesa: '', bairro: '', rua: '', numero: '', complemento: '', pagamento: '', troco: '', obs: '' }
+const vazio: Form = { nome: '', telefone: '', tipo: 'entrega', mesa: '', cidade: '', bairro: '', rua: '', numero: '', complemento: '', pagamento: '', troco: '', obs: '' }
 const enderecoCompleto = (f: Form) => `${f.rua.trim()}, ${f.numero.trim()}${f.complemento.trim() ? ` - ${f.complemento.trim()}` : ''}`
 const campo = 'w-full rounded-lg border border-neutral-300 px-3 py-2'
 const rotulo = 'mb-1 block text-sm font-semibold text-neutral-800'
@@ -143,7 +143,7 @@ export default function Cardapio() {
       const [c, p, z, fp, rs, g, i, h] = await Promise.all([
         supabase.from('categorias').select('id,nome').eq('loja_id', l.id).order('ordem'),
         supabase.from('produtos').select('id,categoria_id,nome,descricao,preco,foto_url,dias_semana').eq('loja_id', l.id).eq('ativo', true).order('ordem'),
-        supabase.from('zonas_entrega').select('bairro,taxa').eq('loja_id', l.id).order('bairro'),
+        supabase.from('zonas_entrega').select('cidade,bairro,taxa').eq('loja_id', l.id).order('cidade').order('bairro'),
         supabase.from('formas_pagamento').select('id,nome,aceita_troco').eq('loja_id', l.id).order('ordem'),
         supabase.from('redes_sociais').select('rede,url').eq('loja_id', l.id).order('ordem'),
         supabase.from('grupos_adicionais').select('id,nome,tipo,obrigatorio,maximo').eq('loja_id', l.id).order('ordem'),
@@ -188,7 +188,11 @@ export default function Cardapio() {
 
   const qtd = carrinho.reduce((s, l) => s + l.qtd, 0)
   const subtotal = carrinho.reduce((s, l) => s + linhaTotal(l), 0)
-  const taxa = f.tipo === 'entrega' ? (zonas.find(z => z.bairro === f.bairro)?.taxa ?? 0) : 0
+  // Cidades de entrega: com uma só, ela fica escolhida sozinha; com várias, o cliente escolhe antes do bairro
+  const cidadesEntrega = [...new Set(zonas.map(z => z.cidade))]
+  const cidadeEntrega = cidadesEntrega.length === 1 ? cidadesEntrega[0] : f.cidade
+  const bairrosCidade = zonas.filter(z => z.cidade === cidadeEntrega)
+  const taxa = f.tipo === 'entrega' ? (bairrosCidade.find(z => z.bairro === f.bairro)?.taxa ?? 0) : 0
   const set = (k: keyof Form, v: string) => setF(x => ({ ...x, [k]: v }))
   const formaSelecionada = formasPag.find(x => x.nome === f.pagamento)
   const descontoValor = cupom ? (cupom.tipo === 'frete_gratis' ? taxa : cupom.desconto) : 0
@@ -222,6 +226,7 @@ export default function Cardapio() {
       ...x,
       nome: x.nome.trim() ? x.nome : (data.nome ?? x.nome),
       tipo: x.tipo === 'entrega' && data.tipo === 'retirada' && loja?.aceita_retirada ? 'retirada' : x.tipo,
+      cidade: x.cidade ? x.cidade : (data.cidade ?? x.cidade),
       bairro: x.bairro ? x.bairro : (data.bairro ?? x.bairro),
       rua: x.rua ? x.rua : (data.rua ?? x.rua),
       numero: x.numero ? x.numero : (data.numero ?? x.numero),
@@ -310,7 +315,7 @@ export default function Cardapio() {
     // O servidor recalcula preços, adicionais e taxa: o navegador não define valores.
     const { data, error } = await supabase.rpc('criar_pedido', {
       p_slug: slug,
-      p_cliente: { nome: f.nome, telefone: f.telefone, tipo: f.tipo, mesa: f.tipo === 'mesa' ? f.mesa : null, bairro: f.bairro, rua: f.rua, numero: f.numero, complemento: f.complemento, endereco: enderecoCompleto(f), pagamento: f.pagamento, troco: f.troco, obs: f.obs },
+      p_cliente: { nome: f.nome, telefone: f.telefone, tipo: f.tipo, mesa: f.tipo === 'mesa' ? f.mesa : null, cidade: f.tipo === 'entrega' ? cidadeEntrega : null, bairro: f.bairro, rua: f.rua, numero: f.numero, complemento: f.complemento, endereco: enderecoCompleto(f), pagamento: f.pagamento, troco: f.troco, obs: f.obs },
       p_itens: carrinho.map(l => ({ produto_id: l.produto.id, qtd: l.qtd, adicionais: l.selecoes.map(s => ({ item_id: s.item_id, qtd: s.qtd })) })),
       p_cupom_codigo: cupom?.codigo ?? null,
     })
@@ -330,11 +335,11 @@ export default function Cardapio() {
         ...l.selecoes.map(s => `   + ${s.qtd}x ${s.nome}`),
       ]), '',
       `Subtotal: ${R(data.subtotal)}`,
-      ...(f.tipo === 'entrega' ? [`Entrega (${f.bairro}): ${R(data.taxa)}`] : []),
+      ...(f.tipo === 'entrega' ? [`Entrega (${f.bairro} - ${cidadeEntrega}): ${R(data.taxa)}`] : []),
       ...(data.desconto > 0 ? [`Cupom ${cupom?.codigo ?? ''}: -${R(data.desconto)}`] : []),
       `*Total: ${R(data.total)}*`, '',
       `Cliente: ${f.nome} (${f.telefone})`,
-      f.tipo === 'entrega' ? `Endereço: ${enderecoCompleto(f)}, ${f.bairro}` : 'Retirada na loja',
+      f.tipo === 'entrega' ? `Endereço: ${enderecoCompleto(f)}, ${f.bairro} - ${cidadeEntrega}` : 'Retirada na loja',
       `Pagamento: ${f.pagamento}${formaSelecionada?.aceita_troco && f.troco ? ` (troco para ${f.troco})` : ''}`,
       ...(f.obs ? [`Obs: ${f.obs}`] : []),
     ]
@@ -510,11 +515,20 @@ export default function Cardapio() {
           )}
           {f.tipo === 'retirada' && loja.endereco && <p className="text-sm">Retirada em: {loja.endereco}</p>}
           {f.tipo === 'entrega' && (<>
+            {cidadesEntrega.length > 1 && (
+              <label className="block">
+                <span className={rotulo}>Cidade</span>
+                <select required className={campo} value={f.cidade} onChange={e => setF(x => ({ ...x, cidade: e.target.value, bairro: '' }))}>
+                  <option value="">Escolha a cidade</option>
+                  {cidadesEntrega.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </label>
+            )}
             <label className="block">
-              <span className={rotulo}>Bairro</span>
-              <select required className={campo} value={f.bairro} onChange={e => set('bairro', e.target.value)}>
-                <option value="">Escolha o bairro</option>
-                {zonas.map(z => <option key={z.bairro} value={z.bairro}>{z.bairro} ({R(z.taxa)})</option>)}
+              <span className={rotulo}>Bairro{cidadesEntrega.length === 1 ? ` (${cidadeEntrega})` : ''}</span>
+              <select required className={campo} value={f.bairro} onChange={e => set('bairro', e.target.value)} disabled={!cidadeEntrega}>
+                <option value="">{cidadeEntrega ? 'Escolha o bairro' : 'Escolha a cidade primeiro'}</option>
+                {bairrosCidade.map(z => <option key={z.bairro} value={z.bairro}>{z.bairro} ({R(z.taxa)})</option>)}
               </select>
             </label>
             <label className="block">
