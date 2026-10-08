@@ -10,7 +10,7 @@ type Cat = { id: string; nome: string; ordem: number }
 type Prod = { id: string; categoria_id: string; nome: string; descricao: string | null; preco: number; ativo: boolean; foto_url: string | null; dias_semana: number[] | null }
 type Zona = { id: string; cidade: string; bairro: string; taxa: number }
 type Grupo = { id: string; nome: string; tipo: 'unica' | 'multipla'; obrigatorio: boolean; maximo: number | null }
-type ItemAd = { id: string; grupo_id: string; nome: string; preco: number; permite_quantidade: boolean; quantidade_maxima: number; ativo: boolean }
+type ItemAd = { id: string; grupo_id: string; nome: string; preco: number; permite_quantidade: boolean; quantidade_maxima: number; ativo: boolean; dias_semana: number[] | null }
 type Aba = 'pedidos' | 'mesas' | 'cardapio' | 'adicionais' | 'bairros' | 'loja' | 'relatorios'
 type Horario = { dia_semana: number; abre: string | null; fecha: string | null; fechado: boolean }
 type FormaPagamento = { id: string; nome: string; aceita_troco: boolean; ordem: number }
@@ -978,14 +978,18 @@ function AbaAdicionais({ loja }: { loja: Loja }) {
   const [obrigatorio, setObrigatorio] = useState(false)
   const [maximo, setMaximo] = useState('')
   const [busca, setBusca] = useState('')
+  const [diasHabilitados, setDiasHabilitados] = useState<number[]>([0, 1, 2, 3, 4, 5, 6])
   const carregar = useCallback(async () => {
-    const [g, i] = await Promise.all([
+    const [g, i, h] = await Promise.all([
       supabase.from('grupos_adicionais').select('id,nome,tipo,obrigatorio,maximo').eq('loja_id', loja.id).order('ordem'),
-      supabase.from('itens_adicionais').select('id,grupo_id,nome,preco,permite_quantidade,quantidade_maxima,ativo,grupos_adicionais!inner(loja_id)').eq('grupos_adicionais.loja_id', loja.id).order('ordem'),
+      supabase.from('itens_adicionais').select('id,grupo_id,nome,preco,permite_quantidade,quantidade_maxima,ativo,dias_semana,grupos_adicionais!inner(loja_id)').eq('grupos_adicionais.loja_id', loja.id).order('ordem'),
+      supabase.from('horarios_funcionamento').select('dia_semana,fechado').eq('loja_id', loja.id),
     ])
     const e = g.error || i.error
     if (e) setErro(e.message)
     setGrupos((g.data as Grupo[]) ?? []); setItens((i.data as any) ?? [])
+    const fechados = new Set((h.data ?? []).filter((d: any) => d.fechado).map((d: any) => d.dia_semana))
+    setDiasHabilitados([0, 1, 2, 3, 4, 5, 6].filter(d => !fechados.has(d)))
   }, [loja.id])
   useEffect(() => { carregar() }, [carregar])
   async function criarGrupo(e: FormEvent) {
@@ -1024,10 +1028,10 @@ function AbaAdicionais({ loja }: { loja: Loja }) {
         <div key={g.id} className="rounded-xl border border-neutral-200 bg-white p-3">
           <GrupoLinha grupo={g} loja={loja} feito={carregar} erro={setErro} />
           <div className="mt-2 space-y-2 pl-2">
-            {itensGrupo.map(i => <FormItemAdicional key={i.id + i.nome + i.preco} grupoId={g.id} loja={loja} item={i} feito={carregar} erro={setErro} />)}
+            {itensGrupo.map(i => <FormItemAdicional key={i.id + i.nome + i.preco + (i.dias_semana?.join(',') ?? '')} grupoId={g.id} loja={loja} item={i} diasHabilitados={diasHabilitados} feito={carregar} erro={setErro} />)}
             <details className="rounded-lg bg-neutral-100 p-2">
               <summary className="cursor-pointer text-sm font-semibold">Novo item neste grupo</summary>
-              <div className="mt-2"><FormItemAdicional grupoId={g.id} loja={loja} feito={carregar} erro={setErro} /></div>
+              <div className="mt-2"><FormItemAdicional grupoId={g.id} loja={loja} diasHabilitados={diasHabilitados} feito={carregar} erro={setErro} /></div>
             </details>
           </div>
         </div>
@@ -1092,7 +1096,13 @@ function GrupoLinha({ grupo, loja, feito, erro }: { grupo: Grupo; loja: Loja; fe
   )
 }
 
-function FormItemAdicional({ grupoId, loja, item, feito, erro }: { grupoId: string; loja: Loja; item?: ItemAd; feito: () => void; erro: (m: string) => void }) {
+const DIAS_CURTO = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
+
+function FormItemAdicional({ grupoId, loja, item, diasHabilitados, feito, erro }: { grupoId: string; loja: Loja; item?: ItemAd; diasHabilitados: number[]; feito: () => void; erro: (m: string) => void }) {
+  const [diasSel, setDiasSel] = useState<number[]>(item?.dias_semana ?? [])
+  const alternarDia = (dia: number) => setDiasSel(s => s.includes(dia) ? s.filter(x => x !== dia) : [...s, dia])
+  const todosMarcados = diasHabilitados.length > 0 && diasHabilitados.every(d => diasSel.includes(d))
+  const resumoDias = diasSel.length === 0 || todosMarcados ? 'todos os dias' : 'só ' + [...diasSel].sort().map(d => DIAS_CURTO[d]).join(', ')
   const [nome, setNome] = useState(item?.nome ?? '')
   const [preco, setPreco] = useState(item ? String(item.preco).replace('.', ',') : '')
   const [permiteQtd, setPermiteQtd] = useState(item?.permite_quantidade ?? false)
@@ -1103,12 +1113,12 @@ function FormItemAdicional({ grupoId, loja, item, feito, erro }: { grupoId: stri
     const p = NUM(preco || '0')
     if (!nome.trim() || !(p >= 0)) return erro('Informe o nome e o preço do item (pode ser 0).')
     const max = permiteQtd ? Math.max(1, parseInt(qtdMax, 10) || 1) : 1
-    const dados = { nome: nome.trim(), preco: p, permite_quantidade: permiteQtd, quantidade_maxima: max, ativo }
+    const dados = { nome: nome.trim(), preco: p, permite_quantidade: permiteQtd, quantidade_maxima: max, ativo, dias_semana: diasSel.length && !todosMarcados ? [...diasSel].sort() : null }
     const { error } = item ? await supabase.from('itens_adicionais').update(dados).eq('id', item.id) : await supabase.from('itens_adicionais').insert({ ...dados, grupo_id: grupoId })
     if (error) return erro(error.message)
     erro('')
     registrarLog(loja.id, item ? `Item de adicional editado: "${dados.nome}"` : `Item de adicional criado: "${dados.nome}"`)
-    if (!item) { setNome(''); setPreco(''); setPermiteQtd(false); setQtdMax('3'); setAtivo(true) }
+    if (!item) { setNome(''); setPreco(''); setPermiteQtd(false); setQtdMax('3'); setAtivo(true); setDiasSel([]) }
     feito()
   }
   async function excluir() {
@@ -1129,6 +1139,18 @@ function FormItemAdicional({ grupoId, loja, item, feito, erro }: { grupoId: stri
         </label>
       )}
       <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={ativo} onChange={e => setAtivo(e.target.checked)} /> Disponível</label>
+      <details className="rounded-lg border border-neutral-200 p-2 text-sm">
+        <summary className="cursor-pointer">Dias da semana: <b>{resumoDias}</b></summary>
+        <p className="my-1 text-neutral-600">Deixe tudo desmarcado para mostrar todos os dias. Marque só os dias em que essa opção fica disponível (ex.: feijoada só no sábado).</p>
+        <div className="flex flex-wrap gap-2">
+          <label className="flex w-full items-center gap-1 border-b border-neutral-200 pb-2 font-semibold">
+            <input type="checkbox" checked={todosMarcados} onChange={e => setDiasSel(e.target.checked ? [...diasHabilitados] : [])} /> Selecionar todos
+          </label>
+          {diasHabilitados.map(dia => (
+            <label key={dia} className="flex items-center gap-1"><input type="checkbox" checked={diasSel.includes(dia)} onChange={() => alternarDia(dia)} />{DIAS[dia]}</label>
+          ))}
+        </div>
+      </details>
       <div className="flex gap-2">
         <button className={botao}>{item ? 'Salvar' : 'Adicionar item'}</button>
         {item && <button type="button" className={claro} onClick={excluir}>Excluir</button>}

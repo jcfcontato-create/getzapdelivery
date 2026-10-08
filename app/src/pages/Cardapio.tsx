@@ -10,7 +10,7 @@ type Produto = { id: string; categoria_id: string; nome: string; descricao: stri
 type Zona = { cidade: string; bairro: string; taxa: number }
 type Horario = { dia_semana: number; abre: string | null; fecha: string | null; fechado: boolean }
 type Grupo = { id: string; nome: string; tipo: 'unica' | 'multipla'; obrigatorio: boolean; maximo: number | null }
-type ItemAd = { id: string; grupo_id: string; nome: string; preco: number; permite_quantidade: boolean; quantidade_maxima: number }
+type ItemAd = { id: string; grupo_id: string; nome: string; preco: number; permite_quantidade: boolean; quantidade_maxima: number; dias_semana?: number[] | null }
 type FormaPagamento = { id: string; nome: string; aceita_troco: boolean }
 type Selecao = { item_id: string; nome: string; preco: number; qtd: number }
 type LinhaCarrinho = { id: string; produto: Produto; qtd: number; selecoes: Selecao[] }
@@ -147,7 +147,7 @@ export default function Cardapio() {
         supabase.from('formas_pagamento').select('id,nome,aceita_troco').eq('loja_id', l.id).order('ordem'),
         supabase.from('redes_sociais').select('rede,url').eq('loja_id', l.id).order('ordem'),
         supabase.from('grupos_adicionais').select('id,nome,tipo,obrigatorio,maximo').eq('loja_id', l.id).order('ordem'),
-        supabase.from('itens_adicionais').select('id,grupo_id,nome,preco,permite_quantidade,quantidade_maxima,ativo,grupos_adicionais!inner(loja_id)').eq('grupos_adicionais.loja_id', l.id).eq('ativo', true).order('ordem'),
+        supabase.from('itens_adicionais').select('id,grupo_id,nome,preco,permite_quantidade,quantidade_maxima,ativo,dias_semana,grupos_adicionais!inner(loja_id)').eq('grupos_adicionais.loja_id', l.id).eq('ativo', true).order('ordem'),
         supabase.from('horarios_funcionamento').select('dia_semana,abre,fecha,fechado').eq('loja_id', l.id),
       ])
       // Produtos e adicionais aparecem em ordem alfabética para o cliente (a ordem
@@ -156,7 +156,7 @@ export default function Cardapio() {
       const hojeSemana = new Date().getDay()
       const produtosHoje = (p.data ?? []).filter((x: any) => !x.dias_semana || x.dias_semana.includes(hojeSemana))
       setCats(c.data ?? []); setProds([...produtosHoje].sort(porNome)); setZonas(z.data ?? [])
-      setGrupos((g.data as Grupo[]) ?? []); setItensAd([...((i.data as any) ?? [])].sort(porNome))
+      setGrupos((g.data as Grupo[]) ?? []); setItensAd([...((i.data as any) ?? [])].filter((x: any) => !x.dias_semana || x.dias_semana.includes(hojeSemana)).sort(porNome))
       setHorarios((h.data as Horario[]) ?? [])
       setRedes((rs.data as RedeSocial[]) ?? [])
       const formas = (fp.data as FormaPagamento[]) ?? []
@@ -238,7 +238,8 @@ export default function Cardapio() {
 
   function gruposDoProduto(produtoId: string): Grupo[] {
     const ids = ligacoes[produtoId] ?? []
-    return grupos.filter(g => ids.includes(g.id))
+    // Grupo sem nenhuma opção disponível hoje (ex.: todas marcadas só para sábado) não aparece
+    return grupos.filter(g => ids.includes(g.id) && itensAd.some(i => i.grupo_id === g.id))
   }
   // Quando o produto tem um grupo de escolha única obrigatório (ex.: "Tamanho"), o preço
   // do produto pode ficar 0 e a diferença de preço fica em cada opção do grupo.
