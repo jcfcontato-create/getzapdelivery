@@ -16,11 +16,9 @@ Supabase → Edge Functions → **Secrets**:
 | `ASAAS_API_KEY` | Chave de API do Asaas (Configurações da conta → Integrações) |
 | `ASAAS_AMBIENTE` | `producao` (sem isso, usa o sandbox de testes) |
 | `ASAAS_WEBHOOK_TOKEN` | Uma senha longa inventada, a mesma colocada no webhook do Asaas |
-| `SMTP_HOST` | `smtp.hostinger.com` |
-| `SMTP_PORT` | `465` |
-| `SMTP_USER` | ex.: `contato@getzapdelivery.com.br` |
-| `SMTP_PASS` | senha dessa caixa de e-mail |
-| `SMTP_FROM` | `GetZap Delivery <contato@getzapdelivery.com.br>` |
+| `SMTP_PASS` | senha da caixa contato@getzapdelivery.com.br |
+
+O servidor (`smtp.hostinger.com`, porta 465), o usuário e o remetente (`GetZap Delivery <contato@getzapdelivery.com.br>`) já são o padrão no código. Só cadastre `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER` ou `SMTP_FROM` se quiser trocar.
 
 Asaas → Integrações → **Webhooks** → novo webhook:
 - URL: `https://<ref-do-projeto>.supabase.co/functions/v1/asaas-webhook`

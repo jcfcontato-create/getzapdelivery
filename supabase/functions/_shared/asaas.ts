@@ -65,8 +65,11 @@ const esc = (s: string) => s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;
 
 // Envia e-mail pelo SMTP da Hostinger. Não derruba o fluxo se falhar: só registra o erro.
 export async function enviarEmail(para: string, assunto: string, titulo: string, paragrafos: string[], botao?: { texto: string; url: string }) {
-  const host = Deno.env.get('SMTP_HOST'), user = Deno.env.get('SMTP_USER'), pass = Deno.env.get('SMTP_PASS')
-  if (!host || !user || !pass) { console.error('SMTP não configurado; e-mail não enviado para', para); return false }
+  // Padrões do e-mail da Hostinger (não são secretos); só a senha fica nos Secrets (SMTP_PASS)
+  const host = Deno.env.get('SMTP_HOST') || 'smtp.hostinger.com'
+  const user = Deno.env.get('SMTP_USER') || 'contato@getzapdelivery.com.br'
+  const pass = Deno.env.get('SMTP_PASS')
+  if (!pass) { console.error('SMTP_PASS não configurado; e-mail não enviado para', para); return false }
   const porta = Number(Deno.env.get('SMTP_PORT') || 465)
   const de = Deno.env.get('SMTP_FROM') || `GetZap Delivery <${user}>`
   const html = `<!doctype html><html><body style="margin:0;background:#f4f6f8;font-family:Arial,Helvetica,sans-serif;color:#1B2A4A">
