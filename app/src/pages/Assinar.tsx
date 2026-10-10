@@ -111,7 +111,7 @@ function Iniciar({ plano, aoIniciar }: { plano: Plano; aoIniciar: (token: string
         <p className="mt-1 text-xs text-neutral-500">{f.forma === 'CREDIT_CARD' ? 'O cartão fica salvo no Asaas para as próximas renovações automáticas.' : 'A cada renovação, você recebe um novo Pix por e-mail.'}</p>
       </fieldset>
       <label className="flex items-start gap-2 text-sm"><input type="checkbox" className="mt-1" checked={aceito} onChange={e => setAceito(e.target.checked)} />
-        <span>Li e aceito os <a className="underline" href="https://getzapdelivery.com.br/termos-de-uso" target="_blank" rel="noreferrer">Termos de Uso</a> e a <a className="underline" href="https://getzapdelivery.com.br/politica-de-privacidade" target="_blank" rel="noreferrer">Política de Privacidade</a>.</span></label>
+        <span>Li e aceito os <a className="underline" href="https://getzapdelivery.com.br/termos-de-uso.html" target="_blank" rel="noreferrer">Termos de Uso</a> e a <a className="underline" href="https://getzapdelivery.com.br/politica-de-privacidade.html" target="_blank" rel="noreferrer">Política de Privacidade</a>.</span></label>
       {erro && <p role="alert" className="rounded-lg bg-red-100 p-3 text-red-800">{erro}</p>}
       <button disabled={enviando} className={botao}>{enviando ? 'Gerando pagamento…' : `Ir para o pagamento - ${PLANOS[p].preco}`}</button>
       <p className="text-center text-xs text-neutral-500">Pagamento processado com segurança pelo Asaas.</p>
