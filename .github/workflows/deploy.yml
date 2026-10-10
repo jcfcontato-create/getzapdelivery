@@ -65,7 +65,10 @@ jobs:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
 
-      - name: Publicar a Edge Function admin-criar-loja
-        run: supabase functions deploy admin-criar-loja --project-ref ${{ secrets.SUPABASE_PROJECT_REF }}
+      - name: Publicar as Edge Functions
+        run: |
+          supabase functions deploy admin-criar-loja --project-ref ${{ secrets.SUPABASE_PROJECT_REF }}
+          supabase functions deploy assinatura --project-ref ${{ secrets.SUPABASE_PROJECT_REF }}
+          supabase functions deploy asaas-webhook --no-verify-jwt --project-ref ${{ secrets.SUPABASE_PROJECT_REF }}
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}

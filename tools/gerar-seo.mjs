@@ -174,6 +174,7 @@ Allow: /
 Disallow: /painel
 Disallow: /admin
 Disallow: /monitor
+Disallow: /assinar
 Disallow: /seo/
 
 Sitemap: ${SITE}/sitemap.xml
