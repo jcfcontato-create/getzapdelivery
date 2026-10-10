@@ -47,6 +47,8 @@ function registrarLog(lojaId: string, acao: string) {
 const campo ='w-full rounded-lg border border-neutral-300 bg-white px-3 py-2'
 const botao = 'rounded-lg bg-[#1A7F37] px-4 py-2 font-bold text-white disabled:opacity-50'
 const claro = 'rounded-lg border border-neutral-400 bg-white px-3 py-2'
+const vermelho = 'rounded-lg bg-red-600 px-3 py-2 font-bold text-white hover:bg-red-700'
+const laranja = 'rounded-lg bg-orange-500 px-3 py-2 font-bold text-white hover:bg-orange-600'
 const Sino = ({ off }: { off: boolean }) => (
   <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
     <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.7 21a2 2 0 0 1-3.4 0" />{off && <path d="M3 3l18 18" />}
@@ -1089,8 +1091,8 @@ function GrupoLinha({ grupo, loja, feito, erro }: { grupo: Grupo; loja: Loja; fe
         <p className="text-sm text-neutral-500">{grupo.tipo === 'unica' ? 'Seleção única' : `Seleção múltipla${grupo.maximo ? `, até ${grupo.maximo}` : ', sem limite'}`}{grupo.obrigatorio ? ' · Obrigatório' : ''}</p>
       </div>
       <div className="flex gap-2 text-sm">
-        <button type="button" className={claro} onClick={() => setEditando(true)}>Editar</button>
-        <button type="button" className={claro} onClick={excluir}>Excluir</button>
+        <button type="button" className={laranja} onClick={() => setEditando(true)}>Editar</button>
+        <button type="button" className={vermelho} onClick={excluir}>Excluir</button>
       </div>
     </div>
   )
@@ -1152,8 +1154,8 @@ function FormItemAdicional({ grupoId, loja, item, diasHabilitados, feito, erro }
         </div>
       </details>
       <div className="flex gap-2">
-        <button className={botao}>{item ? 'Salvar' : 'Adicionar item'}</button>
-        {item && <button type="button" className={claro} onClick={excluir}>Excluir</button>}
+        <button className={item ? laranja : botao}>{item ? 'Salvar alterações' : 'Adicionar item'}</button>
+        {item && <button type="button" className={vermelho} onClick={excluir}>Excluir</button>}
       </div>
     </form>
   )
