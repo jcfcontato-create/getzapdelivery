@@ -20,8 +20,10 @@ RewriteRule . /index.html [L]
 # cache do servidor) — é a porta de entrada do app, e tem sempre o mesmo nome. Sem isso,
 # depois de cada deploy, quem já tinha visitado o cardápio continua vendo a versão antiga
 # até o cache expirar sozinho (foi o que aconteceu ao atualizar o design da Adega S.O.S).
+AddType application/manifest+json .webmanifest
+
 <IfModule mod_headers.c>
-  <FilesMatch "(\.html|config\.js|sitemap\.xml|robots\.txt)$">
+  <FilesMatch "(\.html|\.webmanifest|config\.js|sitemap\.xml|robots\.txt)$">
     Header set Cache-Control "no-cache, no-store, must-revalidate"
     Header set Pragma "no-cache"
     Header set Expires 0

@@ -142,7 +142,7 @@ ${catsComida.map(c => { const itens = comida.filter(p => p.categoria_id === c.id
 
 async function main() {
   const molde = await readFile(join(pasta, 'index.html'), 'utf8')
-  const lojas = await api('lojas', 'select=id,slug,nome,whatsapp,endereco,cidade,uf,cep,tipo_cozinha,descricao_seo,logo_url,banner_pc_url,banner_celular_url,plataforma_ativa&plataforma_ativa=eq.true')
+  const lojas = await api('lojas', 'select=id,slug,nome,cor,whatsapp,endereco,cidade,uf,cep,tipo_cozinha,descricao_seo,logo_url,banner_pc_url,banner_celular_url,plataforma_ativa&plataforma_ativa=eq.true')
   const [cats, prods, horarios] = await Promise.all([
     api('categorias', 'select=id,loja_id,nome,ordem&order=ordem'),
     api('produtos', 'select=id,loja_id,categoria_id,nome,descricao,preco,foto_url&ativo=eq.true&order=nome'),
@@ -150,6 +150,8 @@ async function main() {
   ])
   const seo = join(pasta, 'seo')
   await mkdir(seo, { recursive: true })
+  const manifestos = join(pasta, 'manifest')
+  await mkdir(manifestos, { recursive: true })
   const gerados = new Set()
   for (const loja of lojas) {
     if (!/^[a-z0-9-]+$/.test(loja.slug)) continue
@@ -158,6 +160,18 @@ async function main() {
     await writeFile(destino + '.tmp', html)
     await rename(destino + '.tmp', destino)
     gerados.add(`${loja.slug}.html`)
+    // Manifesto do "app" da loja (atalho na tela inicial do celular, com a logo como ícone)
+    const icone = loja.logo_url || `${SITE}/logo-getzapdelivery.jpg`
+    const tipoIcone = /\.png(\?|$)/i.test(icone) ? 'image/png' : /\.webp(\?|$)/i.test(icone) ? 'image/webp' : 'image/jpeg'
+    const manifesto = {
+      id: `/${loja.slug}`, name: loja.nome, short_name: loja.nome.slice(0, 30), lang: 'pt-BR',
+      start_url: `/${loja.slug}?origem=app`, scope: `/${loja.slug}`, display: 'standalone',
+      background_color: '#ffffff', theme_color: /^#[0-9a-f]{6}$/i.test(loja.cor ?? '') ? loja.cor : '#1B2A4A',
+      icons: [192, 512].map(t => ({ src: icone, sizes: `${t}x${t}`, type: tipoIcone, purpose: 'any' })),
+    }
+    const destManif = join(manifestos, `${loja.slug}.webmanifest`)
+    await writeFile(destManif + '.tmp', JSON.stringify(manifesto))
+    await rename(destManif + '.tmp', destManif)
   }
   // Remove páginas de lojas que saíram do ar
   for (const f of await readdir(seo)) if (f.endsWith('.html') && !gerados.has(f)) await unlink(join(seo, f))

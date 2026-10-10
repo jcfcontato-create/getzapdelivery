@@ -130,6 +130,20 @@ export default function Cardapio() {
   const [autoPreenchido, setAutoPreenchido] = useState(false)
   const [busca, setBusca] = useState('')
   const [buscaAberta, setBuscaAberta] = useState(false)
+  // "Baixar app": atalho do cardápio na tela inicial do celular (PWA)
+  const [convite, setConvite] = useState<any>(null)
+  const [ajudaApp, setAjudaApp] = useState(false)
+  const jaInstalado = typeof window !== 'undefined' && (window.matchMedia?.('(display-mode: standalone)').matches || (navigator as any).standalone === true)
+  const ehIOS = typeof navigator !== 'undefined' && /iphone|ipad|ipod/i.test(navigator.userAgent)
+  useEffect(() => {
+    const pegar = (e: Event) => { e.preventDefault(); setConvite(e) }
+    window.addEventListener('beforeinstallprompt', pegar)
+    return () => window.removeEventListener('beforeinstallprompt', pegar)
+  }, [])
+  async function baixarApp() {
+    if (convite) { convite.prompt(); await convite.userChoice.catch(() => null); setConvite(null); return }
+    setAjudaApp(true)
+  }
 
   useEffect(() => {
     ;(async () => {
@@ -138,6 +152,13 @@ export default function Cardapio() {
       if (!l) { setErro('Loja não encontrada.'); setCarga(false); return }
       if (!l.plataforma_ativa) { setErro('Este cardápio está temporariamente indisponível.'); setCarga(false); return }
       document.title = `${l.nome} | Cardápio`
+      // Liga o manifesto do app da loja (gerado em /manifest/<slug>.webmanifest) e o ícone para iPhone
+      const meta = (sel: string, criar: () => HTMLElement) => (document.head.querySelector(sel) as HTMLElement) ?? document.head.appendChild(criar())
+      const link = (rel: string) => meta(`link[rel="${rel}"]`, () => Object.assign(document.createElement('link'), { rel })) as HTMLLinkElement
+      link('manifest').href = `/manifest/${slug}.webmanifest`
+      link('apple-touch-icon').href = l.logo_url || '/logo-getzapdelivery.jpg'
+      const nm = (name: string, content: string) => { (meta(`meta[name="${name}"]`, () => Object.assign(document.createElement('meta'), { name })) as HTMLMetaElement).content = content }
+      nm('apple-mobile-web-app-capable', 'yes'); nm('mobile-web-app-capable', 'yes'); nm('apple-mobile-web-app-title', l.nome); nm('theme-color', l.cor)
       setLoja(l)
       supabase.from('mesas').select('numero').eq('loja_id', l.id).order('numero').then(({ data }) => setMesas((data ?? []).map((x: any) => x.numero)))
       const [c, p, z, fp, rs, g, i, h] = await Promise.all([
@@ -365,6 +386,12 @@ export default function Cardapio() {
             <button type="button" aria-label={`Ver pedido (${qtd} itens)`} onClick={() => { setEtapa('checkout'); window.scrollTo(0, 0) }} className="relative">
               <IconeSacola />
               <span className="absolute -right-2 -top-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1 text-xs font-bold text-white">{qtd}</span>
+            </button>
+          )}
+          {!jaInstalado && (
+            <button type="button" onClick={baixarApp} className="flex items-center gap-1 rounded-full border-2 border-current px-2.5 py-1 text-xs font-extrabold uppercase">
+              <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14" /></svg>
+              Baixar app
             </button>
           )}
           <button type="button" aria-label="Compartilhar cardápio" onClick={compartilhar}><IconeCompartilhar /></button>
@@ -617,6 +644,31 @@ export default function Cardapio() {
             sugerirApos(produtoModal.id)
           }}
         />
+      )}
+
+      {ajudaApp && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4" role="dialog" aria-modal="true" onClick={() => setAjudaApp(false)}>
+          <div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-2xl" onClick={e => e.stopPropagation()}>
+            <div className="mb-3 flex items-center gap-3">
+              <img src={loja.logo_url || '/logo-getzapdelivery.jpg'} alt="" className="h-14 w-14 rounded-2xl object-cover shadow" />
+              <div><p className="font-extrabold">{loja.nome}</p><p className="text-sm text-neutral-600">Tenha o cardápio na tela do seu celular</p></div>
+            </div>
+            {ehIOS ? (
+              <ol className="list-decimal space-y-2 pl-5 text-sm">
+                <li>Toque no botão <b>Compartilhar</b> do Safari (o quadrado com a seta para cima).</li>
+                <li>Role e escolha <b>Adicionar à Tela de Início</b>.</li>
+                <li>Toque em <b>Adicionar</b>. Pronto: o ícone da loja aparece junto dos seus apps.</li>
+              </ol>
+            ) : (
+              <ol className="list-decimal space-y-2 pl-5 text-sm">
+                <li>Toque no menu do navegador (os <b>três pontinhos ⋮</b> no canto).</li>
+                <li>Escolha <b>Instalar app</b> ou <b>Adicionar à tela inicial</b>.</li>
+                <li>Confirme. O ícone da loja aparece junto dos seus apps.</li>
+              </ol>
+            )}
+            <button type="button" onClick={() => setAjudaApp(false)} className="mt-4 w-full rounded-lg py-3 font-bold" style={{ background: cor, color: texto(cor) }}>Entendi</button>
+          </div>
+        </div>
       )}
 
       {sugestaoAberta && (
