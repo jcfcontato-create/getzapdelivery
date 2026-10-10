@@ -57,7 +57,11 @@ Deno.serve(async (req) => {
       // Reaproveita uma assinatura ainda não paga do mesmo e-mail/plano/forma (evita cobranças duplicadas)
       const { data: pendente } = await db().from('assinaturas').select('*').ilike('email', email)
         .eq('plano', plano).eq('forma_pagamento', forma).eq('status', 'aguardando_pagamento').order('criado_em', { ascending: false }).limit(1).maybeSingle()
-      if (pendente?.link_pagamento) return json({ token: pendente.token, link: pendente.link_pagamento })
+      // Só reaproveita se a cobrança for do mesmo ambiente do Asaas (sandbox x produção)
+      const producao = Deno.env.get('ASAAS_AMBIENTE') === 'producao'
+      const mesmoAmbiente = (l?: string | null) => !!l && (l.includes('sandbox.asaas.com') !== producao)
+      if (pendente?.link_pagamento && mesmoAmbiente(pendente.link_pagamento)) return json({ token: pendente.token, link: pendente.link_pagamento })
+      if (pendente) await db().from('assinaturas').update({ status: 'cancelada', atualizado_em: new Date().toISOString() }).eq('id', pendente.id)
 
       const { data: a, error } = await db().from('assinaturas')
         .insert({ plano, forma_pagamento: forma, nome, email, cpf_cnpj: cpfCnpj, whatsapp }).select('*').single()
