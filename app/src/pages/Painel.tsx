@@ -291,13 +291,14 @@ function Area() {
         {aba === 'adicionais' && <AbaAdicionais loja={loja} />}
         {aba === 'relatorios' && <AbaRelatorios loja={loja} />}
         {aba === 'loja' && (<>
-          <div role="tablist" aria-label="Seções da loja" className="mb-4 flex gap-2">
+          <div role="tablist" aria-label="Seções da loja" className="mb-4 flex flex-wrap gap-2">
             {([['dados', 'Dados da loja'], ['bairros', 'Bairros e taxas']] as const).map(([id, nome]) => (
               <button key={id} role="tab" aria-selected={subLoja === id} onClick={() => setSubLoja(id)}
                 className={`rounded-full px-4 py-2 text-sm font-semibold ${subLoja === id ? 'bg-[#1B2A4A] text-white' : 'border border-neutral-300 bg-white text-neutral-700'}`}>
                 {nome}
               </button>
             ))}
+            <ExportarClientes loja={loja} />
           </div>
           {subLoja === 'dados' && (<>
             <AbaLoja loja={loja} salvo={setLoja} />
@@ -884,6 +885,63 @@ function FormZona({ loja, cidade, z, feito, erro }: { loja: Loja; cidade: string
         {z && <button type="button" className={claro} onClick={excluir}>Excluir</button>}
       </div>
     </form>
+  )
+}
+
+// Exporta os clientes memorizados no checkout (tabela clientes_loja) para uma planilha CSV
+// que abre direto no Excel e no Google Planilhas, com o resumo de pedidos de cada um.
+function ExportarClientes({ loja }: { loja: Loja }) {
+  const [ocupado, setOcupado] = useState(false)
+  async function exportar() {
+    setOcupado(true)
+    try {
+      const { data: clientes, error } = await supabase.from('clientes_loja')
+        .select('nome,telefone,tipo,cidade,bairro,rua,numero,complemento,pagamento,atualizado_em')
+        .eq('loja_id', loja.id).order('nome')
+      if (error) throw error
+      if (!clientes?.length) { alert('Ainda não há clientes memorizados nesta loja.'); return }
+      // Resumo de pedidos por telefone (só dígitos), buscando em páginas de 1000
+      const resumo = new Map<string, { qtd: number; total: number; ultimo: string }>()
+      for (let de = 0; ; de += 1000) {
+        const { data: peds, error: e2 } = await supabase.from('pedidos').select('cliente_telefone,total,status,criado_em')
+          .eq('loja_id', loja.id).neq('status', 'cancelado').order('criado_em').range(de, de + 999)
+        if (e2) throw e2
+        for (const p of peds ?? []) {
+          const tel = (p.cliente_telefone ?? '').replace(/\D/g, '')
+          const r = resumo.get(tel) ?? { qtd: 0, total: 0, ultimo: '' }
+          r.qtd += 1; r.total += Number(p.total) || 0; if (p.criado_em > r.ultimo) r.ultimo = p.criado_em
+          resumo.set(tel, r)
+        }
+        if (!peds || peds.length < 1000) break
+      }
+      const data = (iso?: string | null) => iso ? new Date(iso).toLocaleDateString('pt-BR') : ''
+      const fone = (d: string) => d.length === 11 ? `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}` : d.length === 10 ? `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}` : d
+      const cel = (v: unknown) => { const t = String(v ?? ''); return /[";\n\r]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t }
+      const cab = ['Nome', 'Telefone', 'WhatsApp (link)', 'Cidade', 'Bairro', 'Rua', 'Número', 'Complemento', 'Último tipo de pedido', 'Forma de pagamento', 'Qtd. de pedidos', 'Total gasto (R$)', 'Último pedido', 'Cadastro atualizado em']
+      const linhas = clientes.map((c: any) => {
+        const r = resumo.get(c.telefone) ?? { qtd: 0, total: 0, ultimo: '' }
+        return [c.nome, fone(c.telefone), `https://wa.me/55${c.telefone}`, c.cidade, c.bairro, c.rua, c.numero, c.complemento,
+          { entrega: 'Entrega', retirada: 'Retirada', mesa: 'Mesa' }[c.tipo as string] ?? c.tipo ?? '', c.pagamento,
+          r.qtd, r.total.toFixed(2).replace('.', ','), data(r.ultimo), data(c.atualizado_em)].map(cel).join(';')
+      })
+      // BOM + ponto e vírgula: o Excel em português abre com acentos e colunas certas
+      const csv = '\ufeff' + [cab.join(';'), ...linhas].join('\r\n')
+      const a = document.createElement('a')
+      a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }))
+      a.download = `clientes-${loja.slug}-${new Date().toISOString().slice(0, 10)}.csv`
+      document.body.appendChild(a); a.click(); a.remove()
+      setTimeout(() => URL.revokeObjectURL(a.href), 10000)
+      registrarLog(loja.id, `Clientes exportados (${clientes.length})`)
+    } catch (e: any) {
+      alert('Não foi possível exportar os clientes: ' + (e?.message ?? e))
+    } finally { setOcupado(false) }
+  }
+  return (
+    <button type="button" onClick={exportar} disabled={ocupado}
+      className="flex items-center gap-1.5 rounded-full border border-[#1A7F37] bg-white px-4 py-2 text-sm font-semibold text-[#1A7F37] disabled:opacity-50">
+      <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M5 21h14" /></svg>
+      {ocupado ? 'Exportando…' : 'Exportar clientes'}
+    </button>
   )
 }
 
