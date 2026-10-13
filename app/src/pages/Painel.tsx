@@ -1254,6 +1254,55 @@ function CampoBanner({ titulo, medidas, valor, mudar, erro }: { titulo: string; 
 
 const UFS = ['AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MT', 'MS', 'MG', 'PA', 'PB', 'PR', 'PE', 'PI', 'RJ', 'RN', 'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO']
 
+const URL_PAINEL = 'https://app.getzapdelivery.com.br/painel'
+
+function BotaoCopiar({ texto }: { texto: string }) {
+  const [copiado, setCopiado] = useState(false)
+  async function copiar() {
+    try { await navigator.clipboard.writeText(texto) } catch {
+      const t = document.createElement('textarea'); t.value = texto; document.body.appendChild(t); t.select(); document.execCommand('copy'); t.remove()
+    }
+    setCopiado(true); setTimeout(() => setCopiado(false), 2500)
+  }
+  return <button type="button" onClick={copiar} className="rounded-lg border border-[#1A7F37] px-2 py-0.5 text-xs font-bold text-[#1A7F37]">{copiado ? 'Copiado!' : 'Copiar'}</button>
+}
+
+// Baixa um arquivo .bat que abre o painel no Chrome (ou Edge) já com impressão silenciosa.
+// Usa um perfil separado do navegador: assim funciona mesmo com outras janelas do Chrome abertas.
+function AtalhoImpressao() {
+  function baixar() {
+    const linhas = [
+      '@echo off',
+      'rem Painel GetZap Delivery com impressao automatica (sem janela de impressao)',
+      'set "B="',
+      'if exist "%ProgramFiles%\\Google\\Chrome\\Application\\chrome.exe" set "B=%ProgramFiles%\\Google\\Chrome\\Application\\chrome.exe"',
+      'if not defined B if exist "%ProgramFiles(x86)%\\Google\\Chrome\\Application\\chrome.exe" set "B=%ProgramFiles(x86)%\\Google\\Chrome\\Application\\chrome.exe"',
+      'if not defined B if exist "%LocalAppData%\\Google\\Chrome\\Application\\chrome.exe" set "B=%LocalAppData%\\Google\\Chrome\\Application\\chrome.exe"',
+      'if not defined B if exist "%ProgramFiles(x86)%\\Microsoft\\Edge\\Application\\msedge.exe" set "B=%ProgramFiles(x86)%\\Microsoft\\Edge\\Application\\msedge.exe"',
+      'if not defined B if exist "%ProgramFiles%\\Microsoft\\Edge\\Application\\msedge.exe" set "B=%ProgramFiles%\\Microsoft\\Edge\\Application\\msedge.exe"',
+      'if not defined B (echo Chrome ou Edge nao encontrado neste computador. & pause & exit /b 1)',
+      `start "" "%B%" --kiosk-printing --user-data-dir="%LocalAppData%\\GetZapPainel" "${URL_PAINEL}"`,
+    ]
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(new Blob([linhas.join('\r\n') + '\r\n'], { type: 'application/octet-stream' }))
+    a.download = 'Painel GetZap (impressao automatica).bat'
+    document.body.appendChild(a); a.click(); a.remove()
+    setTimeout(() => URL.revokeObjectURL(a.href), 10000)
+  }
+  return (
+    <div className="space-y-2 rounded-lg border border-green-200 bg-green-50 p-3">
+      <p className="font-semibold text-green-900">Jeito mais fácil (Windows)</p>
+      <ol className="list-decimal space-y-1 pl-5">
+        <li>No computador da loja, clique em <b>Baixar atalho</b> e salve o arquivo na <b>Área de Trabalho</b>.</li>
+        <li>Dê dois cliques nele: o painel abre no Chrome já com a impressão automática. Na primeira vez, entre com seu e-mail e senha (esse atalho usa uma janela separada do Chrome, que guarda o login).</li>
+        <li>Use sempre esse atalho para abrir o painel da loja.</li>
+      </ol>
+      <button type="button" onClick={baixar} className={botao + ' text-sm'}>Baixar atalho para a Área de Trabalho</button>
+      <p className="text-xs text-neutral-600">Se o Windows avisar que o arquivo é "incomum", clique em <b>Manter</b> / <b>Mais informações → Executar assim mesmo</b>. Ele só abre o navegador no painel do GetZap.</p>
+    </div>
+  )
+}
+
 function AbaLoja({ loja, salvo }: { loja: Loja; salvo: (l: Loja) => void }) {
   const [nomeLoja, setNomeLoja] = useState(loja.nome)
   const [whatsapp, setWhatsapp] = useState(loja.whatsapp)
@@ -1460,13 +1509,16 @@ function AbaLoja({ loja, salvo }: { loja: Loja; salvo: (l: Loja) => void }) {
       <details className="rounded-xl border border-neutral-200 bg-white p-3">
         <summary className="cursor-pointer font-bold">Imprimir sem a janela de impressão aparecer a cada pedido</summary>
         <div className="mt-2 space-y-2 text-sm text-neutral-700">
-          <p>Isso é feito uma vez só, no computador da loja, com Google Chrome ou Microsoft Edge. Depois disso, o pedido sai direto na impressora, sem precisar clicar em nada.</p>
+          <p>Isso é feito uma vez só, no <b>computador da loja</b> (Windows), com Google Chrome ou Microsoft Edge. Depois disso, o pedido sai direto na impressora, sem precisar clicar em nada. Não funciona em celular: lá o navegador sempre mostra a janela de impressão.</p>
+          <AtalhoImpressao />
+          <p className="pt-2 font-semibold">Ou faça o atalho manualmente:</p>
           <ol className="list-decimal space-y-2 pl-5">
             <li>No Windows ou Mac, instale a impressora e deixe-a marcada como <b>impressora padrão</b>.</li>
             <li>Feche todas as janelas do Chrome (ou Edge).</li>
             <li>Crie um atalho para o navegador na Área de Trabalho (clique com o botão direito nele na barra de tarefas ou no menu iniciar &gt; "Abrir local do arquivo", copie o atalho para a Área de Trabalho).</li>
             <li>Clique com o botão direito nesse atalho novo &gt; <b>Propriedades</b>. No campo <b>Destino</b>, depois das aspas finais, cole um espaço e:{' '}
-              <code className="rounded bg-neutral-100 px-1">--kiosk-printing https://app.getzapdelivery.com.br/painel</code>
+              <code className="rounded bg-neutral-100 px-1">--kiosk-printing https://app.getzapdelivery.com.br/painel</code>{' '}
+              <BotaoCopiar texto=" --kiosk-printing https://app.getzapdelivery.com.br/painel" />
             </li>
             <li>Clique em OK e sempre abra o painel por esse atalho, nunca pelo ícone comum do navegador.</li>
             <li>Na aba <b>Pedidos</b>, ligue a <b>impressão automática</b> e clique em <b>Imprimir teste</b> para conferir.</li>
