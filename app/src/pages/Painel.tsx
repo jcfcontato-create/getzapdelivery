@@ -2,7 +2,7 @@ import { type FormEvent, useCallback, useEffect, useRef, useState } from 'react'
 import QRCode from 'qrcode'
 import { supabase } from '../lib/supabase'
 
-type Loja = { id: string; slug: string; nome: string; whatsapp: string; aberta: boolean; aceita_retirada: boolean; endereco: string | null; impressora: string | null; logo_url: string | null; banner_celular_url: string | null; banner_pc_url: string | null; cidade: string | null; uf: string | null; cep: string | null; tipo_cozinha: string | null; descricao_seo: string | null; email: string | null; cpf_cnpj: string | null; imprime_via_cozinha: boolean; vias_impressao: number; plataforma_ativa: boolean; cor: string }
+type Loja = { id: string; slug: string; nome: string; whatsapp: string; aberta: boolean; aceita_retirada: boolean; endereco: string | null; impressora: string | null; logo_url: string | null; banner_celular_url: string | null; banner_pc_url: string | null; cidade: string | null; uf: string | null; cep: string | null; tipo_cozinha: string | null; descricao_seo: string | null; email: string | null; cpf_cnpj: string | null; imprime_via_cozinha: boolean; vias_impressao: number; fonte_impressao?: number; plataforma_ativa: boolean; cor: string }
 type ItemAdEscolhido = { nome: string; qtd: number; preco_unit: number }
 type Item = { id: string; nome: string; qtd: number; preco_unit: number; itens_pedido_adicionais: ItemAdEscolhido[] }
 type Pedido = { id: string; numero: number; status: string; cliente_nome: string; cliente_telefone: string; tipo: string; mesa?: number | null; cidade?: string | null; bairro: string | null; endereco: string | null; pagamento: string; troco_para: string | null; observacao: string | null; subtotal: number; taxa_entrega: number; desconto: number; cupom_codigo: string | null; total: number; criado_em: string; itens_pedido: Item[] }
@@ -75,18 +75,20 @@ function imprimirPedido(p: Pedido, loja: Loja, titulo?: string, semPreco?: boole
   const data = new Date(p.criado_em).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })
   const totais = semPreco ? '' : `<table><tr><td>Subtotal</td><td class="d">${R(p.subtotal)}</td></tr>${p.tipo === 'entrega' ? `<tr><td>Entrega</td><td class="d">${R(p.taxa_entrega)}</td></tr>` : ''}${p.desconto > 0 ? `<tr><td>Cupom${p.cupom_codigo ? ' ' + esc(p.cupom_codigo) : ''}</td><td class="d">-${R(p.desconto)}</td></tr>` : ''}<tr class="b"><td>TOTAL</td><td class="d">${R(p.total)}</td></tr></table><hr>
 <p>Pagamento: ${PAG[p.pagamento] ?? esc(p.pagamento)}${p.troco_para ? ` (troco para ${esc(p.troco_para)})` : ''}</p>`
+  // Tamanho da fonte escolhido na aba Loja (13 = normal); títulos e adicionais acompanham na mesma proporção
+  const fs = Math.min(22, Math.max(10, loja.fonte_impressao || 13))
   const html = `<!doctype html><html><head><meta charset="utf-8"><title>Pedido #${p.numero}</title><style>
 @page{size:80mm auto;margin:3mm}
-body{font:13px/1.35 Arial,Helvetica,sans-serif;color:#000;margin:0;width:72mm;text-transform:uppercase}
-h1,h2,p{margin:0}h1{font-size:15px;text-align:center}h2{font-size:19px;text-align:center;margin:6px 0}
+body{font:${fs}px/1.35 Arial,Helvetica,sans-serif;color:#000;margin:0;width:72mm;text-transform:uppercase}
+h1,h2,p{margin:0}h1{font-size:${fs + 2}px;text-align:center}h2{font-size:${fs + 6}px;text-align:center;margin:6px 0}
 hr{border:0;border-top:1px dashed #000;margin:6px 0}table{width:100%;border-collapse:collapse}
-td{vertical-align:top;padding:1px 0}.d{text-align:right;white-space:nowrap}.b{font-weight:bold}.ad{padding-left:8px;font-size:11px;color:#333}
+td{vertical-align:top;padding:1px 0}.d{text-align:right;white-space:nowrap}.b{font-weight:bold}.ad{padding-left:8px;font-size:${fs - 2}px;color:#333}
 </style></head><body>
 <h1>${esc(loja.nome)}</h1>
 <h2>${titulo ?? 'PEDIDO #' + p.numero}</h2>
 <p>${data}</p><hr>
 <p class="b">${esc(p.cliente_nome)}</p>${semPreco ? '' : `<p>${esc(p.cliente_telefone)}</p>`}
-<p${p.tipo === 'mesa' ? ' class="b" style="font-size:17px"' : ''}>${p.tipo === 'entrega' ? `ENTREGA: ${esc(p.endereco ?? '')}, ${esc(p.bairro ?? '')}${p.cidade ? ' - ' + esc(p.cidade) : ''}` : p.tipo === 'mesa' ? `MESA ${p.mesa ?? ''}` : 'RETIRADA NA LOJA'}</p><hr>
+<p${p.tipo === 'mesa' ? ` class="b" style="font-size:${fs + 4}px"` : ''}>${p.tipo === 'entrega' ? `ENTREGA: ${esc(p.endereco ?? '')}, ${esc(p.bairro ?? '')}${p.cidade ? ' - ' + esc(p.cidade) : ''}` : p.tipo === 'mesa' ? `MESA ${p.mesa ?? ''}` : 'RETIRADA NA LOJA'}</p><hr>
 <table>${linhas}</table><hr>
 ${totais}
 ${p.observacao ? `<p>Obs: ${esc(p.observacao)}</p>` : ''}
@@ -236,7 +238,7 @@ function Area() {
   useEffect(() => {
     ;(async () => {
       const { data: s } = await supabase.auth.getSession()
-      const { data, error } = await supabase.from('membros').select('lojas(id,slug,nome,whatsapp,aberta,aceita_retirada,endereco,impressora,logo_url,banner_celular_url,banner_pc_url,cidade,uf,cep,tipo_cozinha,descricao_seo,email,cpf_cnpj,imprime_via_cozinha,vias_impressao,plataforma_ativa,cor)').eq('user_id', s.session?.user.id).limit(1)
+      const { data, error } = await supabase.from('membros').select('lojas(id,slug,nome,whatsapp,aberta,aceita_retirada,endereco,impressora,logo_url,banner_celular_url,banner_pc_url,cidade,uf,cep,tipo_cozinha,descricao_seo,email,cpf_cnpj,imprime_via_cozinha,vias_impressao,fonte_impressao,plataforma_ativa,cor)').eq('user_id', s.session?.user.id).limit(1)
       if (error) setMsg(error.message)
       else if (!data || !data.length) setMsg('Este usuário ainda não está vinculado a uma loja. Fale com o suporte do GetZap.')
       else setLoja((data[0] as any).lojas)
@@ -1265,6 +1267,7 @@ function AbaLoja({ loja, salvo }: { loja: Loja; salvo: (l: Loja) => void }) {
   const [impressora, setImpressora] = useState(loja.impressora ?? '')
   const [imprimeViaCozinha, setImprimeViaCozinha] = useState(loja.imprime_via_cozinha)
   const [viasImpressao, setViasImpressao] = useState(String(loja.vias_impressao ?? 1))
+  const [fonteImpressao, setFonteImpressao] = useState(loja.fonte_impressao ?? 13)
   const [email, setEmail] = useState(loja.email ?? '')
   const [cpfCnpj, setCpfCnpj] = useState(loja.cpf_cnpj ?? '')
   const [logoUrl, setLogoUrl] = useState(loja.logo_url)
@@ -1347,7 +1350,7 @@ function AbaLoja({ loja, salvo }: { loja: Loja; salvo: (l: Loja) => void }) {
     const banner_pc_url = await enviarBanner(bannerPc, 'banner-pc')
     if (banner_pc_url === undefined) return
     const vias = Math.min(5, Math.max(1, Number(viasImpressao) || 1))
-    const dados = { nome: nomeLoja.trim(), banner_celular_url, banner_pc_url, whatsapp, endereco: endereco.trim() || null, cidade: cidade.trim() || null, uf: uf || null, cep: cep || null, tipo_cozinha: tipoCozinha.trim() || null, descricao_seo: descricaoSeo.trim() || null, aceita_retirada: retirada, impressora: impressora.trim() || null, logo_url, email: email.trim() || null, cpf_cnpj: cpfCnpj.trim() || null, imprime_via_cozinha: imprimeViaCozinha, vias_impressao: vias, cor }
+    const dados = { nome: nomeLoja.trim(), banner_celular_url, banner_pc_url, whatsapp, endereco: endereco.trim() || null, cidade: cidade.trim() || null, uf: uf || null, cep: cep || null, tipo_cozinha: tipoCozinha.trim() || null, descricao_seo: descricaoSeo.trim() || null, aceita_retirada: retirada, impressora: impressora.trim() || null, logo_url, email: email.trim() || null, cpf_cnpj: cpfCnpj.trim() || null, imprime_via_cozinha: imprimeViaCozinha, vias_impressao: vias, fonte_impressao: fonteImpressao, cor }
     const { error } = await supabase.from('lojas').update(dados).eq('id', loja.id)
     if (error) return setErro(error.message)
     setErro(''); setOk(true); setLogoArquivo(null); setLogoPreview(null); setLogoUrl(logo_url); setBannerCel({ url: banner_celular_url, arquivo: null, preview: null }); setBannerPc({ url: banner_pc_url, arquivo: null, preview: null }); setViasImpressao(String(vias)); salvo({ ...loja, ...dados })
@@ -1439,6 +1442,11 @@ function AbaLoja({ loja, salvo }: { loja: Loja; salvo: (l: Loja) => void }) {
       <div className="flex flex-wrap items-end gap-4">
         <label className="block"><span className="font-semibold">Quantidade de vias do pedido</span>
           <input type="number" min={1} max={5} className={campo + ' w-24'} value={viasImpressao} onChange={e => setViasImpressao(e.target.value.replace(/\D/g, ''))} /></label>
+        <label className="block"><span className="font-semibold">Tamanho da fonte da impressão</span>
+          <select className={campo + ' w-44'} value={fonteImpressao} onChange={e => setFonteImpressao(Number(e.target.value))}>
+            {[[11, 'Pequena'], [13, 'Normal'], [15, 'Grande'], [17, 'Muito grande'], [20, 'Extra grande']].map(([v, n]) => <option key={v} value={v}>{n} ({v}px)</option>)}
+          </select></label>
+        <button type="button" className={claro} onClick={() => imprimirConformeConfig(pedidoTeste, { ...loja, vias_impressao: 1, imprime_via_cozinha: false, fonte_impressao: fonteImpressao })}>Testar impressão</button>
         <button type="button" aria-pressed={imprimeViaCozinha} onClick={() => setImprimeViaCozinha(v => !v)} className={imprimeViaCozinha ? botao : claro}>
           Via extra para a cozinha: {imprimeViaCozinha ? 'ligada' : 'desligada'}
         </button>
