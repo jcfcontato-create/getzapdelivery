@@ -49,6 +49,7 @@ const botao = 'rounded-lg bg-[#1A7F37] px-4 py-2 font-bold text-white disabled:o
 const claro = 'rounded-lg border border-neutral-400 bg-white px-3 py-2'
 const vermelho = 'rounded-lg bg-red-600 px-3 py-2 font-bold text-white hover:bg-red-700'
 const laranja = 'rounded-lg bg-orange-500 px-3 py-2 font-bold text-white hover:bg-orange-600'
+const azul = 'rounded-lg bg-blue-600 px-3 py-2 font-bold text-white hover:bg-blue-700'
 const Sino = ({ off }: { off: boolean }) => (
   <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
     <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.7 21a2 2 0 0 1-3.4 0" />{off && <path d="M3 3l18 18" />}
@@ -364,7 +365,7 @@ function Pedidos({ loja, versao, impAuto, alternarImp, modo = 'geral', buscaMesa
       {modo === 'geral' && alternarImp && (<>
       <div className="mb-2 flex flex-wrap items-center gap-2">
         <button aria-pressed={impAuto} onClick={alternarImp} className={impAuto ? botao : claro}>Impressão automática: {impAuto ? 'ligada' : 'desligada'}</button>
-        <button className={claro} onClick={() => imprimirConformeConfig(pedidoTeste, loja)}>Imprimir teste</button>
+        <button className={azul} onClick={() => imprimirConformeConfig(pedidoTeste, loja)}>Imprimir teste</button>
       </div>
       {impAuto && <p className="mb-2 text-sm text-neutral-600">Cada pedido novo é impresso assim que chega. Para não abrir a janela de impressão a cada pedido, configure o navegador do computador da loja para imprimir direto.</p>}
       </>)}
@@ -407,8 +408,8 @@ function Pedidos({ loja, versao, impAuto, alternarImp, modo = 'geral', buscaMesa
                 {prox && <button className={botao} onClick={() => mover(p, prox)}>{ROTULO[prox]}</button>}
                 <a className={claro} href={`https://wa.me/55${p.cliente_telefone.replace(/\D/g, '')}`} target="_blank" rel="noreferrer">WhatsApp do cliente</a>
                 {ABERTOS.includes(p.status) && <button className={claro} onClick={() => confirm('Cancelar este pedido?') && mover(p, 'cancelado')}>Cancelar</button>}
-                <button className={claro} onClick={() => imprimirConformeConfig(p, loja)}>Imprimir</button>
-                <button className={claro} onClick={() => excluirPedido(p)}>Excluir</button>
+                <button className={azul} onClick={() => imprimirConformeConfig(p, loja)}>Imprimir</button>
+                <button className={vermelho} onClick={() => excluirPedido(p)}>Excluir</button>
               </div>
               </>) })()}
             </article>
