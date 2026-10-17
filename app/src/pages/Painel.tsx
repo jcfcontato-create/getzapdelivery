@@ -1042,6 +1042,9 @@ function AbaAdicionais({ loja }: { loja: Loja }) {
   const [maximo, setMaximo] = useState('')
   const [busca, setBusca] = useState('')
   const [diasHabilitados, setDiasHabilitados] = useState<number[]>([0, 1, 2, 3, 4, 5, 6])
+  const [salvoOk, setSalvoOk] = useState(false)
+  const timerSalvo = useRef<number | undefined>(undefined)
+  const avisarSalvo = () => { setSalvoOk(true); window.clearTimeout(timerSalvo.current); timerSalvo.current = window.setTimeout(() => setSalvoOk(false), 2500) }
   const carregar = useCallback(async () => {
     const [g, i, h] = await Promise.all([
       supabase.from('grupos_adicionais').select('id,nome,tipo,obrigatorio,maximo').eq('loja_id', loja.id).order('ordem'),
@@ -1066,6 +1069,7 @@ function AbaAdicionais({ loja }: { loja: Loja }) {
   }
   return (
     <section className="space-y-4">
+      {salvoOk && <p role="status" className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-full bg-[#1A7F37] px-5 py-3 font-bold text-white shadow-lg">✓ Dados salvos com sucesso</p>}
       <p className="text-sm text-neutral-600">Cadastre aqui os adicionais (ex.: "Escolha o sabor", "Adicionais extras"). Depois, na aba Cardápio, marque em cada produto quais adicionais ele usa.</p>
       <Erro m={erro} />
       <input className={campo} placeholder="Buscar adicional pelo nome..." value={busca} onChange={e => setBusca(e.target.value)} />
@@ -1089,9 +1093,9 @@ function AbaAdicionais({ loja }: { loja: Loja }) {
         if (buscaLimpa && !grupoBate && itensGrupo.length === 0) return null
         return (
         <div key={g.id} className="rounded-xl border border-neutral-200 bg-white p-3">
-          <GrupoLinha grupo={g} loja={loja} feito={carregar} erro={setErro} />
+          <GrupoLinha grupo={g} loja={loja} feito={carregar} erro={setErro} salvo={avisarSalvo} />
           <div className="mt-2 space-y-2 pl-2">
-            {itensGrupo.map(i => <FormItemAdicional key={i.id + i.nome + i.preco + (i.dias_semana?.join(',') ?? '')} grupoId={g.id} loja={loja} item={i} diasHabilitados={diasHabilitados} feito={carregar} erro={setErro} />)}
+            {itensGrupo.map(i => <FormItemAdicional key={i.id + i.nome + i.preco + (i.dias_semana?.join(',') ?? '')} grupoId={g.id} loja={loja} item={i} diasHabilitados={diasHabilitados} feito={carregar} erro={setErro} salvo={avisarSalvo} />)}
             <details className="rounded-lg bg-neutral-100 p-2">
               <summary className="cursor-pointer text-sm font-semibold">Novo item neste grupo</summary>
               <div className="mt-2"><FormItemAdicional grupoId={g.id} loja={loja} diasHabilitados={diasHabilitados} feito={carregar} erro={setErro} /></div>
@@ -1107,7 +1111,7 @@ function AbaAdicionais({ loja }: { loja: Loja }) {
   )
 }
 
-function GrupoLinha({ grupo, loja, feito, erro }: { grupo: Grupo; loja: Loja; feito: () => void; erro: (m: string) => void }) {
+function GrupoLinha({ grupo, loja, feito, erro, salvo }: { grupo: Grupo; loja: Loja; feito: () => void; erro: (m: string) => void; salvo?: () => void }) {
   const [editando, setEditando] = useState(false)
   const [nome, setNome] = useState(grupo.nome)
   const [tipo, setTipo] = useState(grupo.tipo)
@@ -1119,7 +1123,7 @@ function GrupoLinha({ grupo, loja, feito, erro }: { grupo: Grupo; loja: Loja; fe
     const max = tipo === 'multipla' && maximo.trim() ? parseInt(maximo, 10) : null
     const { error } = await supabase.from('grupos_adicionais').update({ nome: nome.trim(), tipo, obrigatorio, maximo: max }).eq('id', grupo.id)
     if (error) return erro(error.message)
-    erro(''); registrarLog(loja.id, `Grupo de adicionais editado: "${grupo.nome}"${grupo.nome !== nome.trim() ? ` → "${nome.trim()}"` : ''}`); setEditando(false); feito()
+    erro(''); registrarLog(loja.id, `Grupo de adicionais editado: "${grupo.nome}"${grupo.nome !== nome.trim() ? ` → "${nome.trim()}"` : ''}`); setEditando(false); salvo?.(); feito()
   }
   async function excluir() {
     if (!confirm(`Excluir o grupo "${grupo.nome}"? Os itens dele também serão excluídos.`)) return
@@ -1161,7 +1165,7 @@ function GrupoLinha({ grupo, loja, feito, erro }: { grupo: Grupo; loja: Loja; fe
 
 const DIAS_CURTO = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
 
-function FormItemAdicional({ grupoId, loja, item, diasHabilitados, feito, erro }: { grupoId: string; loja: Loja; item?: ItemAd; diasHabilitados: number[]; feito: () => void; erro: (m: string) => void }) {
+function FormItemAdicional({ grupoId, loja, item, diasHabilitados, feito, erro, salvo }: { grupoId: string; loja: Loja; item?: ItemAd; diasHabilitados: number[]; feito: () => void; erro: (m: string) => void; salvo?: () => void }) {
   const [diasSel, setDiasSel] = useState<number[]>(item?.dias_semana ?? [])
   const alternarDia = (dia: number) => setDiasSel(s => s.includes(dia) ? s.filter(x => x !== dia) : [...s, dia])
   const todosMarcados = diasHabilitados.length > 0 && diasHabilitados.every(d => diasSel.includes(d))
@@ -1181,6 +1185,7 @@ function FormItemAdicional({ grupoId, loja, item, diasHabilitados, feito, erro }
     if (error) return erro(error.message)
     erro('')
     registrarLog(loja.id, item ? `Item de adicional editado: "${dados.nome}"` : `Item de adicional criado: "${dados.nome}"`)
+    if (item) salvo?.()
     if (!item) { setNome(''); setPreco(''); setPermiteQtd(false); setQtdMax('3'); setAtivo(true); setDiasSel([]) }
     feito()
   }
