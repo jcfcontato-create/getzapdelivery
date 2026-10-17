@@ -1910,6 +1910,49 @@ function AbaRelatorios({ loja }: { loja: Loja }) {
     a.click()
     URL.revokeObjectURL(url)
   }
+  // Fechamento de caixa na bobina de 80 mm, com os mesmos filtros de período da aba
+  function imprimirFechamento() {
+    const [i, f] = intervalo(); const ultimo = new Date(f); ultimo.setDate(ultimo.getDate() - 1)
+    const d = (x: Date) => x.toLocaleDateString('pt-BR')
+    const per = d(i) === d(ultimo) ? d(i) + (periodo === 'hoje' ? ' (hoje)' : '') : `${d(i)} a ${d(ultimo)}`
+    const agrupar = (chave: (p: Pedido) => string) => {
+      const m = new Map<string, { n: number; v: number }>()
+      entregues.forEach(p => { const k = chave(p); const a = m.get(k) ?? { n: 0, v: 0 }; m.set(k, { n: a.n + 1, v: a.v + Number(p.total) }) })
+      return [...m.entries()].map(([k, v]) => `<tr><td>${esc(k)} (${v.n})</td><td class="d">${R(v.v)}</td></tr>`).join('')
+    }
+    const tipos: Record<string, string> = { entrega: 'Entrega', retirada: 'Retirada', mesa: 'Mesa' }
+    const sub = entregues.reduce((s, p) => s + Number(p.subtotal), 0)
+    const taxas = entregues.reduce((s, p) => s + Number(p.taxa_entrega), 0)
+    const desc = entregues.reduce((s, p) => s + Number(p.desconto || 0), 0)
+    const linha = (a: string, b: string | number) => `<tr><td>${a}</td><td class="d">${b}</td></tr>`
+    const fs = Math.min(22, Math.max(10, loja.fonte_impressao || 13))
+    const html = `<!doctype html><html><head><meta charset="utf-8"><title>Fechamento de caixa</title><style>
+@page{size:80mm auto;margin:3mm}
+body{font:${fs}px/1.35 Arial,Helvetica,sans-serif;color:#000;margin:0;width:72mm;text-transform:uppercase}
+h1,h2,h3,p{margin:0}h1{font-size:${fs + 2}px;text-align:center}h2{font-size:${fs + 6}px;text-align:center;margin:6px 0}h3{font-size:${fs}px;margin:4px 0 2px}
+hr{border:0;border-top:1px dashed #000;margin:6px 0}table{width:100%;border-collapse:collapse}
+td{vertical-align:top;padding:1px 0}.d{text-align:right;white-space:nowrap;padding-left:4px}.b{font-weight:bold}.g{font-size:${fs + 3}px}.c{text-align:center}.p{font-size:${fs - 2}px}
+.ass{margin-top:28px;border-top:1px solid #000;text-align:center;padding-top:2px}
+</style></head><body>
+<h1>${esc(loja.nome)}</h1>
+<h2>FECHAMENTO DE CAIXA</h2>
+<p>Período: ${per}</p>
+<p>Emitido em: ${new Date().toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}</p><hr>
+<h3>Resumo</h3><table>${linha('Pedidos entregues', entregues.length)}${linha('Pedidos cancelados', cancelados)}${linha('Em andamento', emAndamento)}${linha('Ticket médio', R(ticket))}</table><hr>
+<h3>Por forma de pagamento</h3><table>${agrupar(p => PAG[p.pagamento] ?? p.pagamento) || linha('Nenhum pedido entregue', '')}</table><hr>
+<h3>Por tipo de pedido</h3><table>${agrupar(p => tipos[p.tipo] ?? p.tipo) || linha('Nenhum pedido entregue', '')}</table><hr>
+<h3>Totais</h3><table>${linha('Subtotal produtos', R(sub))}${linha('Taxas de entrega', R(taxas))}${desc > 0 ? linha('Descontos (cupons)', '-' + R(desc)) : ''}<tr class="b g"><td>TOTAL DO CAIXA</td><td class="d">${R(faturamento)}</td></tr></table><hr>
+${ranking.length ? `<h3>Mais vendidos</h3><table>${ranking.map(([nome, v], k) => linha(`${k + 1}. ${esc(nome)} — ${v.qtd}x`, R(v.total))).join('')}</table><hr>` : ''}
+<p class="c p">Conta só pedidos marcados como "Entregue"</p>
+<p class="ass">Assinatura do responsável</p>
+<p class="c p" style="margin-top:8px">GetZap Delivery</p>
+</body></html>`
+    const fr = document.createElement('iframe')
+    fr.style.cssText = 'position:fixed;left:0;top:0;width:80mm;height:1px;opacity:0;pointer-events:none;border:0'
+    fr.srcdoc = html
+    fr.onload = () => { fr.contentWindow?.focus(); fr.contentWindow?.print(); setTimeout(() => fr.remove(), 60000) }
+    document.body.appendChild(fr)
+  }
   const entregues = pedidos.filter(p => p.status === 'entregue')
   const cancelados = pedidos.filter(p => p.status === 'cancelado').length
   const emAndamento = pedidos.filter(p => ABERTOS.includes(p.status)).length
@@ -1990,7 +2033,10 @@ function AbaRelatorios({ loja }: { loja: Loja }) {
           <div className="rounded-xl border border-neutral-200 bg-white p-3">
             <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
               <h3 className="font-bold">Planilha de pedidos entregues</h3>
-              {entregues.length > 0 && <button type="button" className={claro} onClick={exportarExcel}>Exportar Excel</button>}
+              <div className="flex flex-wrap gap-2">
+                <button type="button" className={azul} onClick={imprimirFechamento}>Imprimir Fechamento</button>
+                {entregues.length > 0 && <button type="button" className={claro} onClick={exportarExcel}>Exportar Excel</button>}
+              </div>
             </div>
             {entregues.length === 0 ? <p className="text-neutral-600">Nenhum pedido entregue neste período.</p> : (
               <div className="overflow-x-auto">
