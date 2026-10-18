@@ -1,8 +1,9 @@
 import { type FormEvent, useCallback, useEffect, useRef, useState } from 'react'
 import QRCode from 'qrcode'
 import { supabase } from '../lib/supabase'
+import Precificacao from './Precificacao'
 
-type Loja = { id: string; slug: string; nome: string; whatsapp: string; aberta: boolean; aceita_retirada: boolean; endereco: string | null; impressora: string | null; logo_url: string | null; banner_celular_url: string | null; banner_pc_url: string | null; cidade: string | null; uf: string | null; cep: string | null; tipo_cozinha: string | null; descricao_seo: string | null; email: string | null; cpf_cnpj: string | null; imprime_via_cozinha: boolean; vias_impressao: number; fonte_impressao?: number; plataforma_ativa: boolean; cor: string }
+type Loja = { id: string; slug: string; nome: string; whatsapp: string; aberta: boolean; aceita_retirada: boolean; endereco: string | null; impressora: string | null; logo_url: string | null; banner_celular_url: string | null; banner_pc_url: string | null; cidade: string | null; uf: string | null; cep: string | null; tipo_cozinha: string | null; descricao_seo: string | null; email: string | null; cpf_cnpj: string | null; imprime_via_cozinha: boolean; vias_impressao: number; fonte_impressao?: number; plataforma_ativa: boolean; modulo_precificacao?: boolean; cor: string }
 type ItemAdEscolhido = { nome: string; qtd: number; preco_unit: number }
 type Item = { id: string; nome: string; qtd: number; preco_unit: number; itens_pedido_adicionais: ItemAdEscolhido[] }
 type Pedido = { id: string; numero: number; status: string; cliente_nome: string; cliente_telefone: string; tipo: string; mesa?: number | null; cidade?: string | null; bairro: string | null; endereco: string | null; pagamento: string; troco_para: string | null; observacao: string | null; subtotal: number; taxa_entrega: number; desconto: number; cupom_codigo: string | null; total: number; criado_em: string; itens_pedido: Item[] }
@@ -160,7 +161,7 @@ function Area() {
   const [loja, setLoja] = useState<Loja | null>(null)
   const [msg, setMsg] = useState('')
   const [aba, setAba] = useState<Aba>('pedidos')
-  const [subLoja, setSubLoja] = useState<'dados' | 'bairros'>('dados')
+  const [subLoja, setSubLoja] = useState<'dados' | 'bairros' | 'precificacao'>('dados')
   const [som, setSom] = useState(() => { try { return localStorage.getItem('gz_som') !== '0' } catch { return true } })
   const [travado, setTravado] = useState(false)
   const [aviso, setAviso] = useState('')
@@ -239,7 +240,7 @@ function Area() {
   useEffect(() => {
     ;(async () => {
       const { data: s } = await supabase.auth.getSession()
-      const { data, error } = await supabase.from('membros').select('lojas(id,slug,nome,whatsapp,aberta,aceita_retirada,endereco,impressora,logo_url,banner_celular_url,banner_pc_url,cidade,uf,cep,tipo_cozinha,descricao_seo,email,cpf_cnpj,imprime_via_cozinha,vias_impressao,fonte_impressao,plataforma_ativa,cor)').eq('user_id', s.session?.user.id).limit(1)
+      const { data, error } = await supabase.from('membros').select('lojas(id,slug,nome,whatsapp,aberta,aceita_retirada,endereco,impressora,logo_url,banner_celular_url,banner_pc_url,cidade,uf,cep,tipo_cozinha,descricao_seo,email,cpf_cnpj,imprime_via_cozinha,vias_impressao,fonte_impressao,plataforma_ativa,modulo_precificacao,cor)').eq('user_id', s.session?.user.id).limit(1)
       if (error) setMsg(error.message)
       else if (!data || !data.length) setMsg('Este usuário ainda não está vinculado a uma loja. Fale com o suporte do GetZap.')
       else setLoja((data[0] as any).lojas)
@@ -295,7 +296,7 @@ function Area() {
         {aba === 'relatorios' && <AbaRelatorios loja={loja} />}
         {aba === 'loja' && (<>
           <div role="tablist" aria-label="Seções da loja" className="mb-4 flex flex-wrap gap-2">
-            {([['dados', 'Dados da loja'], ['bairros', 'Bairros e taxas']] as const).map(([id, nome]) => (
+            {([['dados', 'Dados da loja'], ['bairros', 'Bairros e taxas'], ...(loja.modulo_precificacao ? [['precificacao', 'Precificação']] as const : [])] as const).map(([id, nome]) => (
               <button key={id} role="tab" aria-selected={subLoja === id} onClick={() => setSubLoja(id)}
                 className={`rounded-full px-4 py-2 text-sm font-semibold ${subLoja === id ? 'bg-[#1B2A4A] text-white' : 'border border-neutral-300 bg-white text-neutral-700'}`}>
                 {nome}
@@ -309,6 +310,7 @@ function Area() {
             <div className="mt-4"><ExportarLog loja={loja} /></div>
           </>)}
           {subLoja === 'bairros' && <AbaBairros loja={loja} />}
+          {subLoja === 'precificacao' && loja.modulo_precificacao && <Precificacao lojaId={loja.id} />}
         </>)}
       </main>
     </div>
