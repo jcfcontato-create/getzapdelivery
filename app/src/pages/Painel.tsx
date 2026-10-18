@@ -2,6 +2,7 @@ import { type FormEvent, useCallback, useEffect, useRef, useState } from 'react'
 import QRCode from 'qrcode'
 import { supabase } from '../lib/supabase'
 import Precificacao from './Precificacao'
+import { EsqueciSenha } from '../components/Senha'
 
 type Loja = { id: string; slug: string; nome: string; whatsapp: string; aberta: boolean; aceita_retirada: boolean; endereco: string | null; impressora: string | null; logo_url: string | null; banner_celular_url: string | null; banner_pc_url: string | null; cidade: string | null; uf: string | null; cep: string | null; tipo_cozinha: string | null; descricao_seo: string | null; email: string | null; cpf_cnpj: string | null; imprime_via_cozinha: boolean; vias_impressao: number; fonte_impressao?: number; plataforma_ativa: boolean; modulo_precificacao?: boolean; cor: string }
 type ItemAdEscolhido = { nome: string; qtd: number; preco_unit: number }
@@ -153,6 +154,7 @@ export function Login() {
         <Erro m={erro} />
         <button disabled={ocupado} className={botao + ' w-full'}>{ocupado ? 'Entrando…' : 'Entrar'}</button>
       </form>
+      <EsqueciSenha emailInicial={email} />
     </main>
   )
 }

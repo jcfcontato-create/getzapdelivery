@@ -1,5 +1,6 @@
 import { type FormEvent, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
+import { EsqueciSenha } from '../components/Senha'
 
 type LojaAdmin = { id: string; slug: string; nome: string; whatsapp: string; aberta: boolean; plataforma_ativa: boolean; modulo_precificacao: boolean; criada_em: string }
 type PedidoResumo = { loja_id: string; total: number }
@@ -49,6 +50,7 @@ function Login() {
         <Erro m={erro} />
         <button disabled={ocupado} className={botao + ' w-full'}>{ocupado ? 'Entrando…' : 'Entrar'}</button>
       </form>
+      <EsqueciSenha emailInicial={email} />
     </main>
   )
 }

@@ -4,9 +4,11 @@ import Painel from './pages/Painel'
 import Admin from './pages/Admin'
 import Monitor from './pages/Monitor'
 import Assinar from './pages/Assinar'
+import { NovaSenha } from './components/Senha'
 
 export default function App() {
-  return (
+  return (<>
+    <NovaSenha />
     <Routes>
       <Route path="/" element={<p className="p-8">GetZap Delivery</p>} />
       <Route path="/painel/*" element={<Painel />} />
@@ -15,5 +17,5 @@ export default function App() {
       <Route path="/assinar" element={<Assinar />} />
       <Route path="/:slug" element={<Cardapio />} />
     </Routes>
-  )
+  </>)
 }
