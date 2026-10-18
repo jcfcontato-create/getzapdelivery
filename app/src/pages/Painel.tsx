@@ -529,6 +529,36 @@ function AcrescentarItem({ produtos, adicionar }: { produtos: { id: string; nome
 }
 
 const TAM_MAX_FOTO = 5 * 1024 * 1024
+// Fotos de produto: o dono costuma enviar fotos enormes do celular (vários MB).
+// Antes de enviar, reduzimos no próprio navegador para no máximo 800 px no lado maior
+// e convertemos para WEBP (ou JPEG, se o navegador não gerar WEBP). Fica com ~50–150 KB.
+const TAM_MAX_ORIGINAL = 40 * 1024 * 1024
+const LADO_MAX_FOTO = 800
+const tamanhoLegivel = (b: number) => b >= 1024 * 1024 ? `${(b / 1024 / 1024).toFixed(1).replace('.', ',')} MB` : `${Math.max(1, Math.round(b / 1024))} KB`
+async function otimizarFoto(arquivo: File): Promise<File> {
+  let img: ImageBitmap
+  try { img = await createImageBitmap(arquivo, { imageOrientation: 'from-image' }) }
+  catch { throw new Error('Não foi possível ler essa imagem. Envie em JPG, PNG ou WEBP.') }
+  const escala = Math.min(1, LADO_MAX_FOTO / Math.max(img.width, img.height))
+  const w = Math.round(img.width * escala), h = Math.round(img.height * escala)
+  const c = document.createElement('canvas'); c.width = w; c.height = h
+  const ctx = c.getContext('2d')!
+  ctx.imageSmoothingQuality = 'high'
+  const gerar = (tipo: string, q: number) => new Promise<Blob | null>(res => c.toBlob(res, tipo, q))
+  ctx.drawImage(img, 0, 0, w, h)
+  let blob = await gerar('image/webp', 0.8)
+  if (!blob || blob.type !== 'image/webp') {
+    // JPEG não tem transparência: fundo branco para PNG recortado não ficar preto
+    ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, w, h); ctx.drawImage(img, 0, 0, w, h)
+    blob = await gerar('image/jpeg', 0.82)
+  }
+  img.close?.()
+  if (!blob) throw new Error('Não foi possível otimizar a imagem.')
+  // Se a original já era menor que a otimizada (raro), mantém a original
+  if (blob.size >= arquivo.size && escala === 1 && /image\/(jpeg|webp)/.test(arquivo.type)) return arquivo
+  const ext = blob.type === 'image/webp' ? 'webp' : 'jpg'
+  return new File([blob], `foto.${ext}`, { type: blob.type })
+}
 
 function FormProduto({ loja, cats, grupos, gruposIniciais, sugestoesIniciais, diasHabilitados, p, feito, erro }: { loja: Loja; cats: Cat[]; grupos: Grupo[]; gruposIniciais?: string[]; sugestoesIniciais?: string[]; diasHabilitados: number[]; p?: Prod; feito: () => void; erro: (m: string) => void }) {
   const vazio = { nome: '', descricao: '', preco: '', categoria_id: cats[0]?.id ?? '', ativo: true, foto_url: null as string | null }
@@ -536,6 +566,8 @@ function FormProduto({ loja, cats, grupos, gruposIniciais, sugestoesIniciais, di
   const [fotoArquivo, setFotoArquivo] = useState<File | null>(null)
   const [fotoPreview, setFotoPreview] = useState<string | null>(null)
   const [enviando, setEnviando] = useState(false)
+  const [otimizando, setOtimizando] = useState(false)
+  const [infoFoto, setInfoFoto] = useState('')
   const [ok, setOk] = useState(false)
   const [gruposSel, setGruposSel] = useState<string[]>(gruposIniciais ?? [])
   const [sugSel, setSugSel] = useState<string[]>(sugestoesIniciais ?? [])
@@ -544,17 +576,23 @@ function FormProduto({ loja, cats, grupos, gruposIniciais, sugestoesIniciais, di
   const alternarGrupo = (id: string) => setGruposSel(s => s.includes(id) ? s.filter(x => x !== id) : [...s, id])
   const alternarSug = (id: string) => setSugSel(s => s.includes(id) ? s.filter(x => x !== id) : [...s, id])
   const alternarDia = (dia: number) => setDiasSel(s => s.includes(dia) ? s.filter(x => x !== dia) : [...s, dia])
-  function escolherFoto(arquivo: File | undefined) {
+  async function escolherFoto(arquivo: File | undefined) {
     if (!arquivo) return
     if (!arquivo.type.startsWith('image/')) return erro('Escolha um arquivo de imagem (JPG, PNG ou WEBP).')
-    if (arquivo.size > TAM_MAX_FOTO) return erro('A imagem precisa ter até 5 MB.')
-    erro('')
-    setFotoArquivo(arquivo)
-    setFotoPreview(URL.createObjectURL(arquivo))
+    if (arquivo.size > TAM_MAX_ORIGINAL) return erro('A imagem é grande demais (máximo 40 MB).')
+    erro(''); setInfoFoto('Otimizando a foto…'); setOtimizando(true)
+    try {
+      const leve = await otimizarFoto(arquivo)
+      setFotoArquivo(leve)
+      setFotoPreview(URL.createObjectURL(leve))
+      setInfoFoto(`Foto otimizada: ${tamanhoLegivel(arquivo.size)} → ${tamanhoLegivel(leve.size)}`)
+    } catch (e) { setInfoFoto(''); erro((e as Error).message) }
+    finally { setOtimizando(false) }
   }
   function removerFoto() {
     setFotoArquivo(null)
     setFotoPreview(null)
+    setInfoFoto('')
     set('foto_url', '')
     setF(x => ({ ...x, foto_url: null }))
   }
@@ -562,12 +600,13 @@ function FormProduto({ loja, cats, grupos, gruposIniciais, sugestoesIniciais, di
     e.preventDefault(); setOk(false)
     const preco = NUM(f.preco)
     if (!f.nome.trim() || f.preco.trim() === '' || !(preco >= 0) || !f.categoria_id) return erro('Informe nome, preço e categoria do produto.')
+    if (otimizando) return erro('Aguarde a foto terminar de ser otimizada.')
     let foto_url = f.foto_url
     if (fotoArquivo) {
       setEnviando(true)
       const ext = fotoArquivo.name.split('.').pop() || 'jpg'
       const caminho = `${loja.id}/${crypto.randomUUID()}.${ext}`
-      const { error: erroEnvio } = await supabase.storage.from('produtos').upload(caminho, fotoArquivo, { upsert: false })
+      const { error: erroEnvio } = await supabase.storage.from('produtos').upload(caminho, fotoArquivo, { upsert: false, contentType: fotoArquivo.type, cacheControl: '31536000' })
       setEnviando(false)
       if (erroEnvio) return erro('Não foi possível enviar a foto: ' + erroEnvio.message)
       foto_url = supabase.storage.from('produtos').getPublicUrl(caminho).data.publicUrl
@@ -607,7 +646,7 @@ function FormProduto({ loja, cats, grupos, gruposIniciais, sugestoesIniciais, di
       if (error) return erro(error.message)
     }
     erro(''); setOk(true)
-    if (!p) { setF(vazio); setFotoArquivo(null); setFotoPreview(null); setGruposSel([]); setSugSel([]); setDiasSel([]) }
+    if (!p) { setF(vazio); setFotoArquivo(null); setFotoPreview(null); setInfoFoto(''); setGruposSel([]); setSugSel([]); setDiasSel([]) }
     feito()
   }
   async function excluir() {
@@ -665,6 +704,7 @@ function FormProduto({ loja, cats, grupos, gruposIniciais, sugestoesIniciais, di
             {mostrarFoto && <button type="button" className="text-sm text-neutral-600 underline" onClick={removerFoto}>Remover foto</button>}
           </div>
         </div>
+        {infoFoto && <p className="mt-1 text-sm text-green-700">{infoFoto}</p>}
       </div>
       <label className="flex items-center gap-2"><input type="checkbox" checked={f.ativo} onChange={e => set('ativo', e.target.checked)} /> Disponível no cardápio</label>
       <div>
