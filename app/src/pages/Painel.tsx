@@ -1102,6 +1102,15 @@ function AbaAdicionais({ loja }: { loja: Loja }) {
     setDiasHabilitados([0, 1, 2, 3, 4, 5, 6].filter(d => !fechados.has(d)))
   }, [loja.id])
   useEffect(() => { carregar() }, [carregar])
+  // Itens marcados como indisponíveis, para o dono reativar rápido
+  const indisponiveis = itens.filter(i => !i.ativo)
+  const nomeGrupo = (id: string) => grupos.find(g => g.id === id)?.nome ?? ''
+  async function reativar(lista: ItemAd[]) {
+    if (!lista.length) return
+    const { error } = await supabase.from('itens_adicionais').update({ ativo: true }).in('id', lista.map(i => i.id))
+    if (error) return setErro(error.message)
+    setErro(''); registrarLog(loja.id, `Adicionais reativados: ${lista.map(i => `"${i.nome}"`).join(', ')}`); avisarSalvo(); carregar()
+  }
   async function criarGrupo(e: FormEvent) {
     e.preventDefault()
     if (!nome.trim()) return setErro('Digite o nome do grupo.')
@@ -1116,6 +1125,23 @@ function AbaAdicionais({ loja }: { loja: Loja }) {
       {salvoOk && <p role="status" className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-full bg-[#1A7F37] px-5 py-3 font-bold text-white shadow-lg">✓ Dados salvos com sucesso</p>}
       <p className="text-sm text-neutral-600">Cadastre aqui os adicionais (ex.: "Escolha o sabor", "Adicionais extras"). Depois, na aba Cardápio, marque em cada produto quais adicionais ele usa.</p>
       <Erro m={erro} />
+      {indisponiveis.length > 0 && (
+        <div className="rounded-xl border border-orange-300 bg-orange-50 p-3">
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+            <h3 className="font-bold text-orange-900">Itens indisponíveis ({indisponiveis.length})</h3>
+            {indisponiveis.length > 1 && <button type="button" className={botao} onClick={() => confirm(`Reativar os ${indisponiveis.length} itens indisponíveis?`) && reativar(indisponiveis)}>Reativar todos</button>}
+          </div>
+          <p className="mb-2 text-sm text-orange-900">Estes itens não aparecem para o cliente no cardápio.</p>
+          <ul className="divide-y divide-orange-200">
+            {indisponiveis.map(i => (
+              <li key={i.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
+                <span><b>{i.nome}</b> <span className="text-sm text-neutral-600">· {nomeGrupo(i.grupo_id)}{Number(i.preco) > 0 ? ` · ${R(i.preco)}` : ''}</span></span>
+                <button type="button" className={botao} onClick={() => reativar([i])}>Reativar</button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       <input className={campo} placeholder="Buscar adicional pelo nome..." value={busca} onChange={e => setBusca(e.target.value)} />
       <form onSubmit={criarGrupo} className="grid gap-2 rounded-xl border border-neutral-200 bg-white p-3">
         <span className="font-semibold">Novo grupo de adicionais</span>
@@ -1139,7 +1165,7 @@ function AbaAdicionais({ loja }: { loja: Loja }) {
         <div key={g.id} className="rounded-xl border border-neutral-200 bg-white p-3">
           <GrupoLinha grupo={g} loja={loja} feito={carregar} erro={setErro} salvo={avisarSalvo} />
           <div className="mt-2 space-y-2 pl-2">
-            {itensGrupo.map(i => <FormItemAdicional key={i.id + i.nome + i.preco + (i.dias_semana?.join(',') ?? '')} grupoId={g.id} loja={loja} item={i} diasHabilitados={diasHabilitados} feito={carregar} erro={setErro} salvo={avisarSalvo} />)}
+            {itensGrupo.map(i => <FormItemAdicional key={i.id + i.nome + i.preco + i.ativo + (i.dias_semana?.join(',') ?? '')} grupoId={g.id} loja={loja} item={i} diasHabilitados={diasHabilitados} feito={carregar} erro={setErro} salvo={avisarSalvo} />)}
             <details className="rounded-lg bg-neutral-100 p-2">
               <summary className="cursor-pointer text-sm font-semibold">Novo item neste grupo</summary>
               <div className="mt-2"><FormItemAdicional grupoId={g.id} loja={loja} diasHabilitados={diasHabilitados} feito={carregar} erro={setErro} /></div>
