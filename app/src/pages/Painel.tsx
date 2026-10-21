@@ -803,6 +803,18 @@ function AbaCardapio({ loja }: { loja: Loja }) {
     }
   }, [loja.id])
   useEffect(() => { carregar() }, [carregar])
+  // Produtos marcados como indisponíveis, para o dono reativar rápido
+  const [salvoOk, setSalvoOk] = useState(false)
+  const timerSalvo = useRef<number | undefined>(undefined)
+  const avisarSalvo = () => { setSalvoOk(true); window.clearTimeout(timerSalvo.current); timerSalvo.current = window.setTimeout(() => setSalvoOk(false), 2500) }
+  const indisponiveis = prods.filter(p => !p.ativo)
+  const nomeCat = (id: string) => cats.find(c => c.id === id)?.nome ?? ''
+  async function reativar(lista: Prod[]) {
+    if (!lista.length) return
+    const { error } = await supabase.from('produtos').update({ ativo: true }).in('id', lista.map(p => p.id))
+    if (error) return setErro(error.message)
+    setErro(''); registrarLog(loja.id, `Produtos reativados: ${lista.map(p => `"${p.nome}"`).join(', ')}`); avisarSalvo(); carregar()
+  }
   async function addCat(e: FormEvent) {
     e.preventDefault()
     if (!nova.trim()) return
@@ -822,7 +834,28 @@ function AbaCardapio({ loja }: { loja: Loja }) {
   }
   return (
     <section className="space-y-4">
+      {salvoOk && <p role="status" className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-full bg-[#1A7F37] px-5 py-3 font-bold text-white shadow-lg">✓ Dados salvos com sucesso</p>}
       <Erro m={erro} />
+      {indisponiveis.length > 0 && (
+        <div className="rounded-xl border border-orange-300 bg-orange-50 p-3">
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+            <h3 className="font-bold text-orange-900">Produtos indisponíveis ({indisponiveis.length})</h3>
+            {indisponiveis.length > 1 && <button type="button" className={botao} onClick={() => confirm(`Reativar os ${indisponiveis.length} produtos indisponíveis?`) && reativar(indisponiveis)}>Reativar todos</button>}
+          </div>
+          <p className="mb-2 text-sm text-orange-900">Estes produtos não aparecem para o cliente no cardápio.</p>
+          <ul className="divide-y divide-orange-200">
+            {indisponiveis.map(p => (
+              <li key={p.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
+                <span className="flex items-center gap-2">
+                  {p.foto_url && <img src={p.foto_url} alt="" className="h-10 w-10 rounded-lg object-cover" />}
+                  <span><b>{p.nome}</b> <span className="text-sm text-neutral-600">· {nomeCat(p.categoria_id)} · {R(p.preco)}</span></span>
+                </span>
+                <button type="button" className={botao} onClick={() => reativar([p])}>Reativar</button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       <input className={campo} placeholder="Buscar produto pelo nome..." value={busca} onChange={e => setBusca(e.target.value)} />
       <form onSubmit={addCat} className="flex gap-2">
         <input className={campo} placeholder="Nova categoria (ex.: Bebidas)" value={nova} onChange={e => setNova(e.target.value)} />
@@ -844,7 +877,7 @@ function AbaCardapio({ loja }: { loja: Loja }) {
               qtdAtivos={prods.filter(p => p.categoria_id === c.id && p.ativo).length}
               podeSubir={i > 0} podeDescer={i < cats.length - 1} mover={d => moverCat(i, d)} feito={carregar} erro={setErro} />
             <div className="mt-2 space-y-2">
-              {produtosCategoria.map(p => <FormProduto key={p.id + p.preco + p.nome + (ligacoes[p.id]?.join(',') ?? '') + (sugestoes[p.id]?.join(',') ?? '') + (p.dias_semana?.join(',') ?? '')} loja={loja} cats={cats} grupos={grupos} gruposIniciais={ligacoes[p.id] ?? []} sugestoesIniciais={sugestoes[p.id] ?? []} diasHabilitados={diasHabilitados} p={p} feito={carregar} erro={setErro} />)}
+              {produtosCategoria.map(p => <FormProduto key={p.id + p.preco + p.nome + p.ativo + (ligacoes[p.id]?.join(',') ?? '') + (sugestoes[p.id]?.join(',') ?? '') + (p.dias_semana?.join(',') ?? '')} loja={loja} cats={cats} grupos={grupos} gruposIniciais={ligacoes[p.id] ?? []} sugestoesIniciais={sugestoes[p.id] ?? []} diasHabilitados={diasHabilitados} p={p} feito={carregar} erro={setErro} />)}
             </div>
           </div>
         )
