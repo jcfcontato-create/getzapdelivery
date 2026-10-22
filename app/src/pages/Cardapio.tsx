@@ -360,7 +360,7 @@ export default function Cardapio() {
       ...(f.tipo === 'entrega' ? [`Entrega (${f.bairro} - ${cidadeEntrega}): ${R(data.taxa)}`] : []),
       ...(data.desconto > 0 ? [`Cupom ${cupom?.codigo ?? ''}: -${R(data.desconto)}`] : []),
       `*Total: ${R(data.total)}*`, '',
-      `Cliente: ${f.nome} (${f.telefone})`,
+      `Cliente: ${f.nome}${f.telefone.trim() ? ` (${f.telefone})` : ''}`,
       f.tipo === 'entrega' ? `Endereço: ${enderecoCompleto(f)}, ${f.bairro} - ${cidadeEntrega}` : 'Retirada na loja',
       `Pagamento: ${f.pagamento}${formaSelecionada?.aceita_troco && f.troco ? ` (troco para ${f.troco})` : ''}`,
       ...(f.obs ? [`Obs: ${f.obs}`] : []),
@@ -518,8 +518,8 @@ export default function Cardapio() {
             </div>
           ))}
           <label className="block">
-            <span className={rotulo}>WhatsApp / Telefone</span>
-            <input required className={campo} placeholder="(11) 99999-9999" inputMode="tel" autoComplete="tel" pattern="\(\d{2}\) \d{4,5}-\d{4}" title="Digite o telefone com DDD: (xx) xxxxx-xxxx" value={f.telefone} onChange={e => { set('telefone', mascaraTelefone(e.target.value)); setAutoPreenchido(false) }} onBlur={buscarCliente} />
+            <span className={rotulo}>WhatsApp / Telefone{f.tipo !== 'entrega' && <span className="font-normal text-neutral-500"> (opcional)</span>}</span>
+            <input required={f.tipo === 'entrega'} className={campo} placeholder="(11) 99999-9999" inputMode="tel" autoComplete="tel" pattern="\(\d{2}\) \d{4,5}-\d{4}" title="Digite o telefone com DDD: (xx) xxxxx-xxxx" value={f.telefone} onChange={e => { set('telefone', mascaraTelefone(e.target.value)); setAutoPreenchido(false) }} onBlur={buscarCliente} />
           </label>
           {autoPreenchido && <p className="text-sm text-green-700">Encontramos seu cadastro! Preenchemos os dados do seu último pedido — pode ajustar o que precisar.</p>}
           <label className="block">
