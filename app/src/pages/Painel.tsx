@@ -2059,7 +2059,6 @@ td{vertical-align:top;padding:1px 0}.d{text-align:right;white-space:nowrap;paddi
 <h3>Por forma de pagamento</h3><table>${agrupar(p => PAG[p.pagamento] ?? p.pagamento) || linha('Nenhum pedido entregue', '')}</table><hr>
 <h3>Por tipo de pedido</h3><table>${agrupar(p => tipos[p.tipo] ?? p.tipo) || linha('Nenhum pedido entregue', '')}</table><hr>
 <h3>Totais</h3><table>${linha('Subtotal produtos', R(sub))}${linha('Taxas de entrega', R(taxas))}${desc > 0 ? linha('Descontos (cupons)', '-' + R(desc)) : ''}<tr class="b g"><td>TOTAL DO CAIXA</td><td class="d">${R(faturamento)}</td></tr></table><hr>
-${ranking.length ? `<h3>Mais vendidos</h3><table>${ranking.map(([nome, v], k) => linha(`${k + 1}. ${esc(nome)} — ${v.qtd}x`, R(v.total))).join('')}</table><hr>` : ''}
 <p class="c p">Conta só pedidos marcados como "Entregue"</p>
 <p class="ass">Assinatura do responsável</p>
 <p class="c p" style="margin-top:8px">GetZap Delivery</p>
