@@ -1883,11 +1883,12 @@ function FormCupom({ loja, cupom, cats, prods, proximaOrdem, feito, erro }: { lo
         <label className="block text-sm"><span className="font-semibold">Limite por cliente</span>
           <input className={campo} inputMode="numeric" placeholder="Sem limite" value={limitePorCliente} onChange={e => setLimitePorCliente(e.target.value.replace(/\D/g, ''))} /></label>
       </div>
-      <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={ativo} onChange={e => setAtivo(e.target.checked)} /> Cupom ativo</label>
-      <div className="flex gap-2">
+      <div className="flex flex-wrap items-center gap-3">
+        <label className="flex items-center gap-2 text-sm font-semibold"><input type="checkbox" checked={ativo} onChange={e => setAtivo(e.target.checked)} /> Cupom ativo</label>
         <button disabled={salvando} className={botao}>{salvando ? 'Salvando…' : cupom ? 'Salvar' : 'Adicionar cupom'}</button>
         {cupom && <button type="button" className={claro} onClick={() => setAberto(false)}>Cancelar</button>}
       </div>
+      {cupom && ativo !== cupom.ativo && <p className="text-sm text-orange-700">Clique em Salvar para {ativo ? 'ativar' : 'desativar'} o cupom.</p>}
     </form>
   )
 }

@@ -124,6 +124,7 @@ export default function Cardapio() {
   const [zap, setZap] = useState('')
   const [produtoModal, setProdutoModal] = useState<Produto | null>(null)
   const [cupomCodigo, setCupomCodigo] = useState('')
+  const [temCupom, setTemCupom] = useState(false)
   const [cupom, setCupom] = useState<{ codigo: string; tipo: 'percentual' | 'fixo' | 'frete_gratis'; desconto: number } | null>(null)
   const [cupomErro, setCupomErro] = useState('')
   const [aplicandoCupom, setAplicandoCupom] = useState(false)
@@ -160,6 +161,7 @@ export default function Cardapio() {
       const nm = (name: string, content: string) => { (meta(`meta[name="${name}"]`, () => Object.assign(document.createElement('meta'), { name })) as HTMLMetaElement).content = content }
       nm('apple-mobile-web-app-capable', 'yes'); nm('mobile-web-app-capable', 'yes'); nm('apple-mobile-web-app-title', l.nome); nm('theme-color', l.cor)
       setLoja(l)
+      supabase.rpc('loja_tem_cupom', { p_slug: slug }).then(({ data }) => setTemCupom(data === true))
       supabase.from('mesas').select('numero').eq('loja_id', l.id).order('numero').then(({ data }) => setMesas((data ?? []).map((x: any) => x.numero)))
       const [c, p, z, fp, rs, g, i, h] = await Promise.all([
         supabase.from('categorias').select('id,nome').eq('loja_id', l.id).order('ordem'),
@@ -591,6 +593,7 @@ export default function Cardapio() {
             <span className={rotulo}>Observações</span>
             <textarea className={campo} placeholder="Opcional" value={f.obs} onChange={e => set('obs', e.target.value)} />
           </label>
+          {(temCupom || cupom) && (
           <div>
             <span className={rotulo}>Cupom de desconto</span>
             <div className="flex gap-2">
@@ -604,6 +607,7 @@ export default function Cardapio() {
             {cupomErro && <p className="mt-1 text-sm text-red-700">{cupomErro}</p>}
             {cupom && <p className="mt-1 text-sm text-green-700">Cupom {cupom.codigo} aplicado{cupom.tipo === 'frete_gratis' ? ': frete grátis' : `: -${R(descontoValor)}`}</p>}
           </div>
+          )}
           <p className="text-right">Subtotal {R(subtotal)}{f.tipo === 'entrega' && <> | Entrega {R(taxa)}</>}</p>
           {descontoValor > 0 && <p className="text-right text-green-700">Desconto -{R(descontoValor)}</p>}
           <p className="text-right text-xl font-bold">Total {R(totalFinal)}</p>
