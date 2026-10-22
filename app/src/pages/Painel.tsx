@@ -2,9 +2,11 @@ import { type FormEvent, useCallback, useEffect, useRef, useState } from 'react'
 import QRCode from 'qrcode'
 import { supabase } from '../lib/supabase'
 import Precificacao from './Precificacao'
+import Divulgacao from './Divulgacao'
 import { EsqueciSenha } from '../components/Senha'
+import { otimizarFoto, tamanhoLegivel, TAM_MAX_ORIGINAL } from '../lib/imagem'
 
-type Loja = { id: string; slug: string; nome: string; whatsapp: string; aberta: boolean; aceita_retirada: boolean; endereco: string | null; impressora: string | null; logo_url: string | null; banner_celular_url: string | null; banner_pc_url: string | null; cidade: string | null; uf: string | null; cep: string | null; tipo_cozinha: string | null; descricao_seo: string | null; email: string | null; cpf_cnpj: string | null; imprime_via_cozinha: boolean; vias_impressao: number; fonte_impressao?: number; plataforma_ativa: boolean; modulo_precificacao?: boolean; cor: string }
+type Loja = { id: string; slug: string; nome: string; whatsapp: string; aberta: boolean; aceita_retirada: boolean; endereco: string | null; impressora: string | null; logo_url: string | null; banner_celular_url: string | null; banner_pc_url: string | null; cidade: string | null; uf: string | null; cep: string | null; tipo_cozinha: string | null; descricao_seo: string | null; email: string | null; cpf_cnpj: string | null; imprime_via_cozinha: boolean; vias_impressao: number; fonte_impressao?: number; plataforma_ativa: boolean; modulo_precificacao?: boolean; modulo_divulgacao?: boolean; cor: string }
 type ItemAdEscolhido = { nome: string; qtd: number; preco_unit: number }
 type Item = { id: string; nome: string; qtd: number; preco_unit: number; itens_pedido_adicionais: ItemAdEscolhido[] }
 type Pedido = { id: string; numero: number; status: string; cliente_nome: string; cliente_telefone: string; tipo: string; mesa?: number | null; cidade?: string | null; bairro: string | null; endereco: string | null; pagamento: string; troco_para: string | null; observacao: string | null; subtotal: number; taxa_entrega: number; desconto: number; cupom_codigo: string | null; total: number; criado_em: string; itens_pedido: Item[] }
@@ -165,11 +167,20 @@ function Area() {
   const [loja, setLoja] = useState<Loja | null>(null)
   const [msg, setMsg] = useState('')
   const [aba, setAba] = useState<Aba>('pedidos')
-  const [subLoja, setSubLoja] = useState<'dados' | 'bairros' | 'precificacao'>('dados')
+  const [subLoja, setSubLoja] = useState<'dados' | 'bairros' | 'precificacao' | 'divulgacao'>('dados')
   const [som, setSom] = useState(() => { try { return localStorage.getItem('gz_som') !== '0' } catch { return true } })
   const [travado, setTravado] = useState(false)
   const [aviso, setAviso] = useState('')
   const [avisoAba, setAvisoAba] = useState<Aba>('pedidos')
+  // Lembrete do módulo de Divulgação: postagens agendadas cuja hora já chegou
+  const [horaDePostar, setHoraDePostar] = useState(0)
+  useEffect(() => {
+    if (!loja?.modulo_divulgacao) return
+    const conferir = () => supabase.from('postagens').select('id', { count: 'exact', head: true }).eq('loja_id', loja.id).eq('status', 'agendada').lte('agendado_para', new Date().toISOString())
+      .then(({ count }) => setHoraDePostar(count ?? 0))
+    conferir(); const t = setInterval(conferir, 60000)
+    return () => clearInterval(t)
+  }, [loja?.id, loja?.modulo_divulgacao, aba, subLoja])
   const [versao, setVersao] = useState(0)
   const [imprimir, setImprimir] = useState(() => { try { return localStorage.getItem('gz_imp') === '1' } catch { return false } })
   const imprimirRef = useRef(imprimir)
@@ -244,7 +255,7 @@ function Area() {
   useEffect(() => {
     ;(async () => {
       const { data: s } = await supabase.auth.getSession()
-      const { data, error } = await supabase.from('membros').select('lojas(id,slug,nome,whatsapp,aberta,aceita_retirada,endereco,impressora,logo_url,banner_celular_url,banner_pc_url,cidade,uf,cep,tipo_cozinha,descricao_seo,email,cpf_cnpj,imprime_via_cozinha,vias_impressao,fonte_impressao,plataforma_ativa,modulo_precificacao,cor)').eq('user_id', s.session?.user.id).limit(1)
+      const { data, error } = await supabase.from('membros').select('lojas(id,slug,nome,whatsapp,aberta,aceita_retirada,endereco,impressora,logo_url,banner_celular_url,banner_pc_url,cidade,uf,cep,tipo_cozinha,descricao_seo,email,cpf_cnpj,imprime_via_cozinha,vias_impressao,fonte_impressao,plataforma_ativa,modulo_precificacao,modulo_divulgacao,cor)').eq('user_id', s.session?.user.id).limit(1)
       if (error) setMsg(error.message)
       else if (!data || !data.length) setMsg('Este usuário ainda não está vinculado a uma loja. Fale com o suporte do GetZap.')
       else setLoja((data[0] as any).lojas)
@@ -286,6 +297,12 @@ function Area() {
       </nav>
       {som && travado && <p role="status" className="bg-amber-100 p-2 text-center text-sm text-amber-900">Toque em qualquer lugar da tela para ativar o som dos avisos.</p>}
       <main className="p-4">
+        {horaDePostar > 0 && !(aba === 'loja' && subLoja === 'divulgacao') && (
+          <div role="alert" className="mb-3 flex items-center justify-between gap-3 rounded-lg bg-blue-600 p-3 font-bold text-white">
+            <span>⏰ Hora de postar! {horaDePostar === 1 ? '1 postagem agendada está' : `${horaDePostar} postagens agendadas estão`} pronta{horaDePostar > 1 ? 's' : ''}.</span>
+            <button className="rounded bg-white px-3 py-1 text-[#1B2A4A]" onClick={() => { setAba('loja'); setSubLoja('divulgacao') }}>Ver</button>
+          </div>
+        )}
         {aviso && (
           <div role="alert" className="mb-3 flex items-center justify-between gap-3 rounded-lg bg-[#1A7F37] p-3 font-bold text-white">
             <span>{aviso}</span>
@@ -300,7 +317,7 @@ function Area() {
         {aba === 'relatorios' && <AbaRelatorios loja={loja} />}
         {aba === 'loja' && (<>
           <div role="tablist" aria-label="Seções da loja" className="mb-4 flex flex-wrap gap-2">
-            {([['dados', 'Dados da loja'], ['bairros', 'Bairros e taxas'], ...(loja.modulo_precificacao ? [['precificacao', 'Precificação']] as const : [])] as const).map(([id, nome]) => (
+            {([['dados', 'Dados da loja'], ['bairros', 'Bairros e taxas'], ...(loja.modulo_precificacao ? [['precificacao', 'Precificação']] as const : []), ...(loja.modulo_divulgacao ? [['divulgacao', 'Divulgação']] as const : [])] as const).map(([id, nome]) => (
               <button key={id} role="tab" aria-selected={subLoja === id} onClick={() => setSubLoja(id)}
                 className={`rounded-full px-4 py-2 text-sm font-semibold ${subLoja === id ? 'bg-[#1B2A4A] text-white' : 'border border-neutral-300 bg-white text-neutral-700'}`}>
                 {nome}
@@ -315,6 +332,7 @@ function Area() {
           </>)}
           {subLoja === 'bairros' && <AbaBairros loja={loja} />}
           {subLoja === 'precificacao' && loja.modulo_precificacao && <Precificacao lojaId={loja.id} />}
+          {subLoja === 'divulgacao' && loja.modulo_divulgacao && <Divulgacao loja={loja} />}
         </>)}
       </main>
     </div>
@@ -549,36 +567,6 @@ function AcrescentarItem({ produtos, adicionar }: { produtos: { id: string; nome
 }
 
 const TAM_MAX_FOTO = 5 * 1024 * 1024
-// Fotos de produto: o dono costuma enviar fotos enormes do celular (vários MB).
-// Antes de enviar, reduzimos no próprio navegador para no máximo 800 px no lado maior
-// e convertemos para WEBP (ou JPEG, se o navegador não gerar WEBP). Fica com ~50–150 KB.
-const TAM_MAX_ORIGINAL = 40 * 1024 * 1024
-const LADO_MAX_FOTO = 800
-const tamanhoLegivel = (b: number) => b >= 1024 * 1024 ? `${(b / 1024 / 1024).toFixed(1).replace('.', ',')} MB` : `${Math.max(1, Math.round(b / 1024))} KB`
-async function otimizarFoto(arquivo: File): Promise<File> {
-  let img: ImageBitmap
-  try { img = await createImageBitmap(arquivo, { imageOrientation: 'from-image' }) }
-  catch { throw new Error('Não foi possível ler essa imagem. Envie em JPG, PNG ou WEBP.') }
-  const escala = Math.min(1, LADO_MAX_FOTO / Math.max(img.width, img.height))
-  const w = Math.round(img.width * escala), h = Math.round(img.height * escala)
-  const c = document.createElement('canvas'); c.width = w; c.height = h
-  const ctx = c.getContext('2d')!
-  ctx.imageSmoothingQuality = 'high'
-  const gerar = (tipo: string, q: number) => new Promise<Blob | null>(res => c.toBlob(res, tipo, q))
-  ctx.drawImage(img, 0, 0, w, h)
-  let blob = await gerar('image/webp', 0.8)
-  if (!blob || blob.type !== 'image/webp') {
-    // JPEG não tem transparência: fundo branco para PNG recortado não ficar preto
-    ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, w, h); ctx.drawImage(img, 0, 0, w, h)
-    blob = await gerar('image/jpeg', 0.82)
-  }
-  img.close?.()
-  if (!blob) throw new Error('Não foi possível otimizar a imagem.')
-  // Se a original já era menor que a otimizada (raro), mantém a original
-  if (blob.size >= arquivo.size && escala === 1 && /image\/(jpeg|webp)/.test(arquivo.type)) return arquivo
-  const ext = blob.type === 'image/webp' ? 'webp' : 'jpg'
-  return new File([blob], `foto.${ext}`, { type: blob.type })
-}
 
 function FormProduto({ loja, cats, grupos, gruposIniciais, sugestoesIniciais, diasHabilitados, p, feito, erro }: { loja: Loja; cats: Cat[]; grupos: Grupo[]; gruposIniciais?: string[]; sugestoesIniciais?: string[]; diasHabilitados: number[]; p?: Prod; feito: () => void; erro: (m: string) => void }) {
   const vazio = { nome: '', descricao: '', preco: '', categoria_id: cats[0]?.id ?? '', ativo: true, foto_url: null as string | null }
