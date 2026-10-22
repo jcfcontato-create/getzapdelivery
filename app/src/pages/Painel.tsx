@@ -33,6 +33,8 @@ const R = (n: number) => Number(n).toLocaleString('pt-BR', { style: 'currency', 
 const NUM = (s: string) => Number(s.replace(',', '.'))
 const STATUS: Record<string, string> = { novo: 'Novo', em_preparo: 'Em preparo', pronto: 'Pronto (aguardando retirada)', saiu_para_entrega: 'Saiu para entrega', entregue: 'Entregue', cancelado: 'Cancelado' }
 const PROXIMO: Record<string, string> = { novo: 'em_preparo', em_preparo: 'saiu_para_entrega', saiu_para_entrega: 'entregue' }
+// Abrir o WhatsApp do cliente ao iniciar preparo / saiu para entrega (desligado a pedido do Jorge em 22/10/2026)
+const AVISO_WHATSAPP_STATUS = false
 const ROTULO: Record<string, string> = { pronto: 'Pedido pronto', em_preparo: 'Iniciar preparo', saiu_para_entrega: 'Saiu para entrega', entregue: 'Marcar como entregue' }
 const PAG: Record<string, string> = { pix: 'Pix na entrega', dinheiro: 'Dinheiro', cartao: 'Cartão na entrega' }
 const ABERTOS = ['novo', 'em_preparo', 'pronto', 'saiu_para_entrega']
@@ -363,7 +365,7 @@ function Pedidos({ loja, versao, impAuto, alternarImp, modo = 'geral', buscaMesa
     window.open(`https://wa.me/${fone}?text=${encodeURIComponent(msgs[status])}`, '_blank', 'noopener')
   }
   async function mover(p: Pedido, status: string) {
-    avisarCliente(p, status)
+    if (AVISO_WHATSAPP_STATUS) avisarCliente(p, status)
     const { error } = await supabase.from('pedidos').update({ status }).eq('id', p.id)
     if (error) setErro(error.message); else { carregar(); registrarLog(loja.id, `Pedido #${p.numero} alterado para "${STATUS[status] ?? status}"`) }
   }
