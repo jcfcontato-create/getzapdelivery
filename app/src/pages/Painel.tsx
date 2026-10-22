@@ -349,7 +349,21 @@ function Pedidos({ loja, versao, impAuto, alternarImp, modo = 'geral', buscaMesa
     registrarLog(loja.id, `Item removido do pedido #${p.numero}: ${item.qtd}x ${item.nome}`)
     carregar()
   }
+  // Aviso ao cliente pelo WhatsApp (abre a conversa com a mensagem pronta; a loja só toca em enviar).
+  // Abre antes do "await" para o navegador não bloquear a nova janela. Pedidos de mesa não recebem.
+  function avisarCliente(p: Pedido, status: string) {
+    const msgs: Record<string, string> = {
+      em_preparo: `Olá, ${p.cliente_nome.split(' ')[0]}! *Pedido Confirmado* ✅\nSeu pedido #${p.numero} na ${loja.nome} já está em preparo.`,
+      saiu_para_entrega: `Olá, ${p.cliente_nome.split(' ')[0]}! *Seu Pedido saiu pra Entrega!* 🛵\nPedido #${p.numero} da ${loja.nome}.`,
+    }
+    if (p.tipo === 'mesa' || !msgs[status]) return
+    let fone = (p.cliente_telefone || '').replace(/\D/g, '')
+    if (fone.length === 10 || fone.length === 11) fone = '55' + fone
+    if (fone.length < 12) return
+    window.open(`https://wa.me/${fone}?text=${encodeURIComponent(msgs[status])}`, '_blank', 'noopener')
+  }
   async function mover(p: Pedido, status: string) {
+    avisarCliente(p, status)
     const { error } = await supabase.from('pedidos').update({ status }).eq('id', p.id)
     if (error) setErro(error.message); else { carregar(); registrarLog(loja.id, `Pedido #${p.numero} alterado para "${STATUS[status] ?? status}"`) }
   }
