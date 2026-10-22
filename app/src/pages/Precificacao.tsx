@@ -9,7 +9,8 @@ type CustoFixo = { id: string; descricao: string; valor: number }
 type Insumo = { id: string; nome: string; unidade: string; qtd_compra: number; valor_compra: number }
 type FichaItem = { id?: string; insumo_id: string; qtd: number }
 type Ficha = { id: string; produto_id: string; rendimento: number; lucro_pct: number | null; ficha_itens: FichaItem[] }
-type Produto = { id: string; nome: string; preco: number; ativo: boolean }
+type Produto = { id: string; nome: string; preco: number; ativo: boolean; categoria_id: string | null }
+type Categoria = { id: string; nome: string }
 
 const R = (n: number) => Number(n).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 // Aceita "6,50", "1.000,50" e "6.5"
@@ -68,17 +69,19 @@ export default function Precificacao({ lojaId }: { lojaId: string }) {
   const [insumos, setInsumos] = useState<Insumo[]>([])
   const [fichas, setFichas] = useState<Ficha[]>([])
   const [produtos, setProdutos] = useState<Produto[]>([])
+  const [categorias, setCategorias] = useState<Categoria[]>([])
   const [salvoOk, avisar] = useAviso()
 
   const carregar = useCallback(async () => {
-    const [c, cf, ins, fi, pr] = await Promise.all([
+    const [c, cf, ins, fi, pr, ca] = await Promise.all([
       supabase.from('precificacao_config').select('*').eq('loja_id', lojaId).maybeSingle(),
       supabase.from('custos_fixos').select('id,descricao,valor').eq('loja_id', lojaId).order('criado_em'),
       supabase.from('insumos').select('id,nome,unidade,qtd_compra,valor_compra').eq('loja_id', lojaId).order('nome'),
       supabase.from('fichas_tecnicas').select('id,produto_id,rendimento,lucro_pct,ficha_itens(id,insumo_id,qtd)').eq('loja_id', lojaId),
-      supabase.from('produtos').select('id,nome,preco,ativo').eq('loja_id', lojaId).order('nome'),
+      supabase.from('produtos').select('id,nome,preco,ativo,categoria_id').eq('loja_id', lojaId).order('nome'),
+      supabase.from('categorias').select('id,nome').eq('loja_id', lojaId).order('ordem'),
     ])
-    const e = c.error || cf.error || ins.error || fi.error || pr.error
+    const e = c.error || cf.error || ins.error || fi.error || pr.error || ca.error
     if (e) setErro(e.message)
     else {
       setErro('')
@@ -87,6 +90,7 @@ export default function Precificacao({ lojaId }: { lojaId: string }) {
       setInsumos((ins.data ?? []).map(x => ({ ...x, qtd_compra: Number(x.qtd_compra), valor_compra: Number(x.valor_compra) })))
       setFichas(((fi.data ?? []) as Ficha[]).map(f => ({ ...f, rendimento: Number(f.rendimento), lucro_pct: f.lucro_pct == null ? null : Number(f.lucro_pct), ficha_itens: f.ficha_itens.map(i => ({ ...i, qtd: Number(i.qtd) })) })))
       setProdutos((pr.data ?? []).map(x => ({ ...x, preco: Number(x.preco) })))
+      setCategorias(ca.data ?? [])
     }
     setCarga(false)
   }, [lojaId])
@@ -98,7 +102,7 @@ export default function Precificacao({ lojaId }: { lojaId: string }) {
   const mapaIns = useMemo(() => new Map(insumos.map(i => [i.id, i])), [insumos])
   const mapaFicha = useMemo(() => new Map(fichas.map(f => [f.produto_id, f])), [fichas])
   const calc = (p: Produto) => calcular(mapaFicha.get(p.id), p.preco, mapaIns, cf, tx, cfg)
-  const ctx = { lojaId, cfg, custos, insumos, fichas, produtos, totalFixos, cf, tx, mapaIns, mapaFicha, calc, carregar, setErro, avisar }
+  const ctx = { lojaId, cfg, custos, insumos, fichas, produtos, categorias, totalFixos, cf, tx, mapaIns, mapaFicha, calc, carregar, setErro, avisar }
 
   return (
     <section className="space-y-4">
@@ -119,7 +123,7 @@ export default function Precificacao({ lojaId }: { lojaId: string }) {
   )
 }
 
-type Ctx = { lojaId: string; cfg: Config; custos: CustoFixo[]; insumos: Insumo[]; fichas: Ficha[]; produtos: Produto[]; totalFixos: number; cf: number; tx: number; mapaIns: Map<string, Insumo>; mapaFicha: Map<string, Ficha>; calc: (p: Produto) => Calculo; carregar: () => Promise<void>; setErro: (m: string) => void; avisar: () => void }
+type Ctx = { lojaId: string; cfg: Config; custos: CustoFixo[]; insumos: Insumo[]; fichas: Ficha[]; produtos: Produto[]; categorias: Categoria[]; totalFixos: number; cf: number; tx: number; mapaIns: Map<string, Insumo>; mapaFicha: Map<string, Ficha>; calc: (p: Produto) => Calculo; carregar: () => Promise<void>; setErro: (m: string) => void; avisar: () => void }
 
 // ───────────── Custos e taxas ─────────────
 function Custos({ lojaId, cfg, custos, totalFixos, cf, tx, carregar, setErro, avisar }: Ctx) {
@@ -279,33 +283,63 @@ function FormInsumo({ item, lojaId, carregar, setErro, avisar }: { item?: Insumo
 
 // ───────────── Fichas técnicas ─────────────
 function Fichas(ctx: Ctx) {
-  const { produtos, calc } = ctx
+  const { produtos, categorias, calc } = ctx
   const [busca, setBusca] = useState('')
   const [aberta, setAberta] = useState<string | null>(null)
-  const lista = produtos.filter(p => p.nome.toLowerCase().includes(busca.trim().toLowerCase()))
+  const [catAbertas, setCatAbertas] = useState<string[]>([])
+  const termo = busca.trim().toLowerCase()
+  const lista = produtos.filter(p => p.nome.toLowerCase().includes(termo))
+  // Categorias na ordem do cardápio; produtos sem categoria vão para "Sem categoria"
+  const ids = new Set(categorias.map(c => c.id))
+  const secoes = [...categorias, { id: '', nome: 'Sem categoria' }]
+    .map(c => ({ ...c, itens: lista.filter(p => (c.id ? p.categoria_id === c.id : !p.categoria_id || !ids.has(p.categoria_id))) }))
+    .filter(c => c.itens.length > 0)
+  const alternarCat = (id: string) => setCatAbertas(l => (l.includes(id) ? l.filter(x => x !== id) : [...l, id]))
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-sm text-neutral-600">Monte a ficha de cada produto do cardápio com os insumos e as quantidades. O preço sugerido aparece na hora.</p>
+        <p className="text-sm text-neutral-600">Escolha a categoria e monte a ficha de cada produto com os insumos e as quantidades. O preço sugerido aparece na hora.</p>
         <input className={`${campo} sm:w-64`} placeholder="Buscar produto" value={busca} onChange={e => setBusca(e.target.value)} />
       </div>
       {ctx.insumos.length === 0 && <p className="rounded-lg bg-yellow-50 p-3 text-sm text-yellow-900">Cadastre primeiro os insumos (aba Insumos) para montar as fichas.</p>}
-      {lista.length === 0 && <p className="text-neutral-600">Nenhum produto encontrado.</p>}
-      {lista.map(p => {
-        const c = calc(p)
+      {secoes.length === 0 && <p className="text-neutral-600">Nenhum produto encontrado.</p>}
+      {secoes.map(cat => {
+        // Na busca, as categorias com resultado já aparecem abertas
+        const expandida = !!termo || catAbertas.includes(cat.id)
+        const calcs = cat.itens.map(p => calc(p))
+        const comFicha = calcs.filter(c => c.status !== 'sem_ficha').length
+        const ajustar = calcs.filter(c => c.status === 'ajustar').length
         return (
-          <div key={p.id} className={cartao}>
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div>
-                <p className="font-bold">{p.nome}{!p.ativo && <span className="ml-2 text-xs font-normal text-neutral-500">(oculto no cardápio)</span>}</p>
-                <p className="text-sm text-neutral-600">Cardápio: {R(p.preco)}{c.sugerido !== null && c.status !== 'sem_ficha' && <> · Sugerido: <b>{R(c.sugerido)}</b></>}{c.lucroAplicado !== null && <> · Lucro atual: {PCT(c.lucroAplicado)}</>}</p>
+          <div key={cat.id || 'sem'} className="rounded-xl border border-neutral-200 bg-white">
+            <button type="button" aria-expanded={expandida} onClick={() => alternarCat(cat.id)} className="flex w-full flex-wrap items-center justify-between gap-2 p-4 text-left">
+              <span className="flex items-center gap-2 font-bold"><span className="inline-block w-4 text-neutral-500">{expandida ? '▾' : '▸'}</span>{cat.nome}</span>
+              <span className="flex flex-wrap items-center gap-2 text-sm text-neutral-600">
+                <span>{cat.itens.length} produto{cat.itens.length > 1 ? 's' : ''} · {comFicha} com ficha</span>
+                {ajustar > 0 && <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-bold text-red-800">{ajustar} para ajustar</span>}
+              </span>
+            </button>
+            {expandida && (
+              <div className="space-y-2 border-t border-neutral-200 p-3">
+                {cat.itens.map((p, k) => {
+                  const c = calcs[k]
+                  return (
+                    <div key={p.id} className="rounded-lg border border-neutral-200 p-3">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div>
+                          <p className="font-bold">{p.nome}{!p.ativo && <span className="ml-2 text-xs font-normal text-neutral-500">(oculto no cardápio)</span>}</p>
+                          <p className="text-sm text-neutral-600">Cardápio: {R(p.preco)}{c.sugerido !== null && c.status !== 'sem_ficha' && <> · Sugerido: <b>{R(c.sugerido)}</b></>}{c.lucroAplicado !== null && <> · Lucro atual: {PCT(c.lucroAplicado)}</>}</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Selo s={c.status} />
+                          <button className={aberta === p.id ? claro : botao} onClick={() => setAberta(aberta === p.id ? null : p.id)}>{aberta === p.id ? 'Fechar' : c.status === 'sem_ficha' ? 'Criar ficha' : 'Abrir ficha'}</button>
+                        </div>
+                      </div>
+                      {aberta === p.id && <EditorFicha key={p.id + (ctx.mapaFicha.get(p.id)?.id ?? '')} produto={p} {...ctx} fechar={() => setAberta(null)} />}
+                    </div>
+                  )
+                })}
               </div>
-              <div className="flex items-center gap-2">
-                <Selo s={c.status} />
-                <button className={aberta === p.id ? claro : botao} onClick={() => setAberta(aberta === p.id ? null : p.id)}>{aberta === p.id ? 'Fechar' : c.status === 'sem_ficha' ? 'Criar ficha' : 'Abrir ficha'}</button>
-              </div>
-            </div>
-            {aberta === p.id && <EditorFicha key={p.id + (ctx.mapaFicha.get(p.id)?.id ?? '')} produto={p} {...ctx} fechar={() => setAberta(null)} />}
+            )}
           </div>
         )
       })}
