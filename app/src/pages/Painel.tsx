@@ -1129,7 +1129,7 @@ function AbaAdicionais({ loja }: { loja: Loja }) {
   const carregar = useCallback(async () => {
     const [g, i, h] = await Promise.all([
       supabase.from('grupos_adicionais').select('id,nome,tipo,obrigatorio,maximo').eq('loja_id', loja.id).order('ordem'),
-      supabase.from('itens_adicionais').select('id,grupo_id,nome,preco,permite_quantidade,quantidade_maxima,ativo,dias_semana,grupos_adicionais!inner(loja_id)').eq('grupos_adicionais.loja_id', loja.id).order('ordem'),
+      supabase.from('itens_adicionais').select('id,grupo_id,nome,preco,permite_quantidade,quantidade_maxima,ativo,dias_semana,grupos_adicionais!inner(loja_id)').eq('grupos_adicionais.loja_id', loja.id).order('preco').order('ordem'),
       supabase.from('horarios_funcionamento').select('dia_semana,fechado').eq('loja_id', loja.id),
     ])
     const e = g.error || i.error

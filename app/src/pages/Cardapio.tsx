@@ -170,7 +170,7 @@ export default function Cardapio() {
         supabase.from('formas_pagamento').select('id,nome,aceita_troco').eq('loja_id', l.id).order('ordem'),
         supabase.from('redes_sociais').select('rede,url').eq('loja_id', l.id).order('ordem'),
         supabase.from('grupos_adicionais').select('id,nome,tipo,obrigatorio,maximo').eq('loja_id', l.id).order('ordem'),
-        supabase.from('itens_adicionais').select('id,grupo_id,nome,preco,permite_quantidade,quantidade_maxima,ativo,dias_semana,grupos_adicionais!inner(loja_id)').eq('grupos_adicionais.loja_id', l.id).eq('ativo', true).order('ordem'),
+        supabase.from('itens_adicionais').select('id,grupo_id,nome,preco,permite_quantidade,quantidade_maxima,ativo,dias_semana,grupos_adicionais!inner(loja_id)').eq('grupos_adicionais.loja_id', l.id).eq('ativo', true).order('preco').order('ordem'),
         supabase.from('horarios_funcionamento').select('dia_semana,abre,fecha,fechado').eq('loja_id', l.id),
       ])
       // Produtos e adicionais aparecem em ordem alfabética para o cliente (a ordem
@@ -179,7 +179,7 @@ export default function Cardapio() {
       const hojeSemana = new Date().getDay()
       const produtosHoje = (p.data ?? []).filter((x: any) => !x.dias_semana || x.dias_semana.includes(hojeSemana))
       setCats(c.data ?? []); setProds([...produtosHoje].sort(porNome)); setZonas(z.data ?? [])
-      setGrupos((g.data as Grupo[]) ?? []); setItensAd([...((i.data as any) ?? [])].filter((x: any) => !x.dias_semana || x.dias_semana.includes(hojeSemana)).sort(porNome))
+      setGrupos((g.data as Grupo[]) ?? []); setItensAd([...((i.data as any) ?? [])].filter((x: any) => !x.dias_semana || x.dias_semana.includes(hojeSemana)).sort((a: any, b: any) => Number(a.preco) - Number(b.preco) || porNome(a, b)))
       setHorarios((h.data as Horario[]) ?? [])
       setRedes((rs.data as RedeSocial[]) ?? [])
       const formas = (fp.data as FormaPagamento[]) ?? []
