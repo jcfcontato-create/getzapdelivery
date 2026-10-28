@@ -4,6 +4,7 @@ import Painel from './pages/Painel'
 import Admin from './pages/Admin'
 import Monitor from './pages/Monitor'
 import Assinar from './pages/Assinar'
+import Demonstracao from './pages/Demonstracao'
 import { NovaSenha } from './components/Senha'
 
 export default function App() {
@@ -15,6 +16,7 @@ export default function App() {
       <Route path="/admin/*" element={<Admin />} />
       <Route path="/monitor" element={<Monitor />} />
       <Route path="/assinar" element={<Assinar />} />
+      <Route path="/demonstracao" element={<Demonstracao />} />
       <Route path="/:slug" element={<Cardapio />} />
     </Routes>
   </>)

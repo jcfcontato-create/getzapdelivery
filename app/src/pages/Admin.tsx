@@ -2,7 +2,7 @@ import { type FormEvent, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { EsqueciSenha } from '../components/Senha'
 
-type LojaAdmin = { id: string; slug: string; nome: string; whatsapp: string; aberta: boolean; plataforma_ativa: boolean; modulo_precificacao: boolean; modulo_divulgacao: boolean; criada_em: string }
+type LojaAdmin = { id: string; slug: string; nome: string; whatsapp: string; aberta: boolean; plataforma_ativa: boolean; modulo_precificacao: boolean; modulo_divulgacao: boolean; demo_ate: string | null; criada_em: string }
 type PedidoResumo = { loja_id: string; total: number }
 
 const campo = 'w-full rounded-lg border border-neutral-300 bg-white px-3 py-2'
@@ -79,13 +79,18 @@ function Painel() {
   const [mostrarForm, setMostrarForm] = useState(false)
 
   async function carregar() {
-    const { data, error } = await supabase.from('lojas').select('id,slug,nome,whatsapp,aberta,plataforma_ativa,modulo_precificacao,modulo_divulgacao,criada_em').order('criada_em', { ascending: false })
+    const { data, error } = await supabase.from('lojas').select('id,slug,nome,whatsapp,aberta,plataforma_ativa,modulo_precificacao,modulo_divulgacao,demo_ate,criada_em').order('criada_em', { ascending: false })
     if (error) setErro(error.message); else setLojas(data as LojaAdmin[])
   }
   useEffect(() => { carregar() }, [])
 
   async function alternarAtiva(l: LojaAdmin) {
     const { error } = await supabase.from('lojas').update({ plataforma_ativa: !l.plataforma_ativa }).eq('id', l.id)
+    if (error) setErro(error.message); else carregar()
+  }
+  async function encerrarDemo(l: LojaAdmin) {
+    if (!confirm(`Encerrar a demonstração de "${l.nome}"? A loja passa a ser tratada como cliente normal.`)) return
+    const { error } = await supabase.from('lojas').update({ demo_ate: null }).eq('id', l.id)
     if (error) setErro(error.message); else carregar()
   }
   async function alternarDivulgacao(l: LojaAdmin) {
@@ -126,7 +131,12 @@ function Painel() {
                     <td className="py-2 pr-3 font-semibold">{l.nome}</td>
                     <td className="py-2 pr-3">/{l.slug}</td>
                     <td className="py-2 pr-3">{l.whatsapp}</td>
-                    <td className="py-2 pr-3">{l.plataforma_ativa ? <span className="text-green-700">Ativa</span> : <span className="text-red-700">Desativada</span>}</td>
+                    <td className="py-2 pr-3">
+                      {l.plataforma_ativa ? <span className="text-green-700">Ativa</span> : <span className="text-red-700">Desativada</span>}
+                      {l.demo_ate && (new Date(l.demo_ate) < new Date()
+                        ? <span className="mt-1 block whitespace-nowrap rounded bg-red-100 px-2 py-0.5 text-xs font-bold text-red-800">Demonstração vencida em {new Date(l.demo_ate).toLocaleDateString('pt-BR')}</span>
+                        : <span className="mt-1 block whitespace-nowrap rounded bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-900">Demonstração até {new Date(l.demo_ate).toLocaleDateString('pt-BR')}</span>)}
+                    </td>
                     <td className="py-2 pr-3">
                       <label className="flex cursor-pointer items-center gap-2 whitespace-nowrap">
                         <input type="checkbox" checked={l.modulo_precificacao} onChange={() => alternarPrecificacao(l)} />
@@ -141,6 +151,7 @@ function Painel() {
                     </td>
                     <td className="py-2 pr-3">
                       <div className="flex flex-wrap gap-2">
+                        {l.demo_ate && <button className={claro} onClick={() => encerrarDemo(l)}>Encerrar demonstração</button>}
                         <button className={claro} onClick={() => alternarAtiva(l)}>{l.plataforma_ativa ? 'Desativar' : 'Ativar'}</button>
                         <button className="rounded-lg bg-red-700 px-3 py-2 font-semibold text-white" onClick={() => excluir(l)}>Excluir</button>
                       </div>
