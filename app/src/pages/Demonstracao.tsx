@@ -1,5 +1,5 @@
 // Página /demonstracao: o dono do restaurante pede 15 dias de demonstração e recebe
-// por e-mail o link do painel, o login e uma senha temporária.
+// por e-mail o link do painel e o login. A senha ele mesmo cria no cadastro.
 import { type FormEvent, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 
@@ -19,9 +19,10 @@ function mascaraTelefone(v: string) {
 }
 
 export default function Demonstracao() {
-  const [f, setF] = useState({ nome: '', slug: '', whatsapp: '', email: '', site: '' })
+  const [f, setF] = useState({ nome: '', slug: '', whatsapp: '', email: '', senha: '', site: '' })
   const [slugEditado, setSlugEditado] = useState(false)
   const [aceito, setAceito] = useState(false)
+  const [verSenha, setVerSenha] = useState(false)
   const [enviando, setEnviando] = useState(false)
   const [erro, setErro] = useState('')
   const [feito, setFeito] = useState<{ email: string; slug: string; ate: string; email_enviado: boolean } | null>(null)
@@ -29,6 +30,7 @@ export default function Demonstracao() {
 
   async function enviar(e: FormEvent) {
     e.preventDefault(); setErro('')
+    if (f.senha.length < 8) return setErro('Crie uma senha com pelo menos 8 caracteres.')
     if (!aceito) return setErro('Para continuar, aceite os Termos de Uso e a Política de Privacidade.')
     setEnviando(true)
     const { data, error } = await supabase.functions.invoke('demonstracao', { body: { ...f, slug: f.slug.replace(/-+$/, '') } })
@@ -54,8 +56,8 @@ export default function Demonstracao() {
           <div className="space-y-3 rounded-2xl bg-white p-5 shadow">
             <h1 className="text-2xl font-extrabold text-[#1B2A4A]">Pronto! Sua demonstração foi criada 🎉</h1>
             {feito.email_enviado
-              ? <p>Enviamos para <b>{feito.email}</b> o link do painel, o seu login e uma senha temporária. Confira também a caixa de spam.</p>
-              : <p>Sua loja foi criada, mas não conseguimos enviar o e-mail agora. Entre no painel com <b>{feito.email}</b> usando <b>"Esqueci minha senha"</b> para criar sua senha.</p>}
+              ? <p>Enviamos para <b>{feito.email}</b> um e-mail com o link do painel e o seu login. Confira também a caixa de spam.</p>
+              : <p>Sua loja foi criada! Entre no painel com o e-mail <b>{feito.email}</b> e a senha que você acabou de criar.</p>}
             <p>Você pode usar o sistema à vontade até <b>{feito.ate}</b>.</p>
             <p className="text-sm text-neutral-600">Endereço do seu cardápio: <b>{SITE}/{feito.slug}</b></p>
             <a href="/painel" className="block rounded-lg bg-[#2EA043] px-4 py-3 text-center font-bold text-white">Ir para o painel</a>
@@ -81,6 +83,12 @@ export default function Demonstracao() {
               <span className="text-xs text-neutral-500">É nele que os pedidos vão chegar.</span></label>
             <label className="block"><span className={rotulo}>Seu e-mail (será o login do painel)</span>
               <input required type="email" autoComplete="email" className={campo} placeholder="voce@email.com" value={f.email} onChange={e => setF(x => ({ ...x, email: e.target.value }))} /></label>
+            <label className="block"><span className={rotulo}>Crie sua senha</span>
+              <div className="flex gap-2">
+                <input required minLength={8} type={verSenha ? 'text' : 'password'} autoComplete="new-password" className={campo} placeholder="Mínimo 8 caracteres" value={f.senha} onChange={e => setF(x => ({ ...x, senha: e.target.value }))} />
+                <button type="button" className="shrink-0 rounded-lg border border-neutral-300 px-3 text-sm" onClick={() => setVerSenha(v => !v)}>{verSenha ? 'Ocultar' : 'Mostrar'}</button>
+              </div>
+              <span className="text-xs text-neutral-500">Você vai usar o e-mail e esta senha para entrar no painel.</span></label>
             {/* Campo-isca contra robôs: escondido das pessoas */}
             <input tabIndex={-1} autoComplete="off" aria-hidden="true" className="absolute left-[-9999px] h-0 w-0 opacity-0" name="site" value={f.site} onChange={e => setF(x => ({ ...x, site: e.target.value }))} />
             <label className="flex items-start gap-2 text-sm">
@@ -89,7 +97,7 @@ export default function Demonstracao() {
             </label>
             {erro && <p role="alert" className="rounded-lg bg-red-100 p-3 text-red-800">{erro}</p>}
             <button disabled={enviando} className="w-full rounded-lg bg-[#2EA043] px-4 py-3 text-lg font-bold text-white disabled:opacity-50">{enviando ? 'Criando sua loja…' : 'Começar meu teste grátis'}</button>
-            <p className="text-center text-xs text-neutral-500">Você recebe no e-mail o link, o login e a senha para começar.</p>
+            <p className="text-center text-xs text-neutral-500">Você entra no painel na hora e recebe por e-mail o link e o seu login.</p>
           </form>
         )}
       </main>
