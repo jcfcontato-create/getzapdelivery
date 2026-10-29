@@ -6,7 +6,7 @@ import Divulgacao from './Divulgacao'
 import { EsqueciSenha } from '../components/Senha'
 import { otimizarFoto, tamanhoLegivel, TAM_MAX_ORIGINAL } from '../lib/imagem'
 
-export type Loja = { id: string; slug: string; nome: string; whatsapp: string; aberta: boolean; aceita_retirada: boolean; endereco: string | null; impressora: string | null; logo_url: string | null; banner_celular_url: string | null; banner_pc_url: string | null; cidade: string | null; uf: string | null; cep: string | null; tipo_cozinha: string | null; descricao_seo: string | null; email: string | null; cpf_cnpj: string | null; imprime_via_cozinha: boolean; vias_impressao: number; fonte_impressao?: number; plataforma_ativa: boolean; modulo_precificacao?: boolean; modulo_divulgacao?: boolean; modulo_whatsapp?: boolean; cor: string }
+export type Loja = { id: string; slug: string; nome: string; whatsapp: string; aberta: boolean; aceita_retirada: boolean; endereco: string | null; impressora: string | null; logo_url: string | null; banner_celular_url: string | null; banner_pc_url: string | null; cidade: string | null; uf: string | null; cep: string | null; tipo_cozinha: string | null; descricao_seo: string | null; email: string | null; cpf_cnpj: string | null; imprime_via_cozinha: boolean; vias_impressao: number; fonte_impressao?: number; plataforma_ativa: boolean; modulo_precificacao?: boolean; modulo_divulgacao?: boolean; modulo_whatsapp?: boolean; aviso_whatsapp_status?: boolean; cor: string }
 type ItemAdEscolhido = { nome: string; qtd: number; preco_unit: number }
 type Item = { id: string; nome: string; qtd: number; preco_unit: number; itens_pedido_adicionais: ItemAdEscolhido[] }
 export type Pedido = { id: string; numero: number; status: string; cliente_nome: string; cliente_telefone: string; tipo: string; mesa?: number | null; cidade?: string | null; bairro: string | null; endereco: string | null; pagamento: string; troco_para: string | null; observacao: string | null; subtotal: number; taxa_entrega: number; desconto: number; cupom_codigo: string | null; total: number; criado_em: string; itens_pedido: Item[] }
@@ -35,8 +35,6 @@ const R = (n: number) => Number(n).toLocaleString('pt-BR', { style: 'currency', 
 const NUM = (s: string) => Number(s.replace(',', '.'))
 const STATUS: Record<string, string> = { novo: 'Novo', em_preparo: 'Em preparo', pronto: 'Pronto (aguardando retirada)', saiu_para_entrega: 'Saiu para entrega', entregue: 'Entregue', cancelado: 'Cancelado' }
 const PROXIMO: Record<string, string> = { novo: 'em_preparo', em_preparo: 'saiu_para_entrega', saiu_para_entrega: 'entregue' }
-// Abrir o WhatsApp do cliente ao iniciar preparo / saiu para entrega (desligado a pedido do Jorge em 22/10/2026)
-const AVISO_WHATSAPP_STATUS = false
 const ROTULO: Record<string, string> = { pronto: 'Pedido pronto', em_preparo: 'Iniciar preparo', saiu_para_entrega: 'Saiu para entrega', entregue: 'Marcar como entregue' }
 const PAG: Record<string, string> = { pix: 'Pix na entrega', dinheiro: 'Dinheiro', cartao: 'Cartão na entrega' }
 const ABERTOS = ['novo', 'em_preparo', 'pronto', 'saiu_para_entrega']
@@ -255,7 +253,7 @@ function Area() {
   useEffect(() => {
     ;(async () => {
       const { data: s } = await supabase.auth.getSession()
-      const { data, error } = await supabase.from('membros').select('lojas(id,slug,nome,whatsapp,aberta,aceita_retirada,endereco,impressora,logo_url,banner_celular_url,banner_pc_url,cidade,uf,cep,tipo_cozinha,descricao_seo,email,cpf_cnpj,imprime_via_cozinha,vias_impressao,fonte_impressao,plataforma_ativa,modulo_precificacao,modulo_divulgacao,modulo_whatsapp,cor)').eq('user_id', s.session?.user.id).limit(1)
+      const { data, error } = await supabase.from('membros').select('lojas(id,slug,nome,whatsapp,aberta,aceita_retirada,endereco,impressora,logo_url,banner_celular_url,banner_pc_url,cidade,uf,cep,tipo_cozinha,descricao_seo,email,cpf_cnpj,imprime_via_cozinha,vias_impressao,fonte_impressao,plataforma_ativa,modulo_precificacao,modulo_divulgacao,modulo_whatsapp,aviso_whatsapp_status,cor)').eq('user_id', s.session?.user.id).limit(1)
       if (error) setMsg(error.message)
       else if (!data || !data.length) setMsg('Este usuário ainda não está vinculado a uma loja. Fale com o suporte do GetZap.')
       else setLoja((data[0] as any).lojas)
@@ -383,7 +381,7 @@ function Pedidos({ loja, versao, impAuto, alternarImp, modo = 'geral', buscaMesa
     window.open(`https://wa.me/${fone}?text=${encodeURIComponent(msgs[status])}`, '_blank', 'noopener')
   }
   async function mover(p: Pedido, status: string) {
-    if (AVISO_WHATSAPP_STATUS) avisarCliente(p, status)
+    if (loja.aviso_whatsapp_status) avisarCliente(p, status)
     const { error } = await supabase.from('pedidos').update({ status }).eq('id', p.id)
     if (error) setErro(error.message); else { carregar(); registrarLog(loja.id, `Pedido #${p.numero} alterado para "${STATUS[status] ?? status}"`); avisarWhatsOficial(p, status) }
   }
@@ -1434,6 +1432,7 @@ function AbaLoja({ loja, salvo }: { loja: Loja; salvo: (l: Loja) => void }) {
   const [retirada, setRetirada] = useState(loja.aceita_retirada)
   const [impressora, setImpressora] = useState(loja.impressora ?? '')
   const [imprimeViaCozinha, setImprimeViaCozinha] = useState(loja.imprime_via_cozinha)
+  const [avisoWhats, setAvisoWhats] = useState(!!loja.aviso_whatsapp_status)
   const [viasImpressao, setViasImpressao] = useState(String(loja.vias_impressao ?? 1))
   const [fonteImpressao, setFonteImpressao] = useState(loja.fonte_impressao ?? 13)
   const [email, setEmail] = useState(loja.email ?? '')
@@ -1518,7 +1517,7 @@ function AbaLoja({ loja, salvo }: { loja: Loja; salvo: (l: Loja) => void }) {
     const banner_pc_url = await enviarBanner(bannerPc, 'banner-pc')
     if (banner_pc_url === undefined) return
     const vias = Math.min(5, Math.max(1, Number(viasImpressao) || 1))
-    const dados = { nome: nomeLoja.trim(), banner_celular_url, banner_pc_url, whatsapp, endereco: endereco.trim() || null, cidade: cidade.trim() || null, uf: uf || null, cep: cep || null, tipo_cozinha: tipoCozinha.trim() || null, descricao_seo: descricaoSeo.trim() || null, aceita_retirada: retirada, impressora: impressora.trim() || null, logo_url, email: email.trim() || null, cpf_cnpj: cpfCnpj.trim() || null, imprime_via_cozinha: imprimeViaCozinha, vias_impressao: vias, fonte_impressao: fonteImpressao, cor }
+    const dados = { nome: nomeLoja.trim(), banner_celular_url, banner_pc_url, whatsapp, endereco: endereco.trim() || null, cidade: cidade.trim() || null, uf: uf || null, cep: cep || null, tipo_cozinha: tipoCozinha.trim() || null, descricao_seo: descricaoSeo.trim() || null, aceita_retirada: retirada, impressora: impressora.trim() || null, logo_url, email: email.trim() || null, cpf_cnpj: cpfCnpj.trim() || null, imprime_via_cozinha: imprimeViaCozinha, aviso_whatsapp_status: avisoWhats, vias_impressao: vias, fonte_impressao: fonteImpressao, cor }
     const { error } = await supabase.from('lojas').update(dados).eq('id', loja.id)
     if (error) return setErro(error.message)
     setErro(''); setOk(true); setLogoArquivo(null); setLogoPreview(null); setLogoUrl(logo_url); setBannerCel({ url: banner_celular_url, arquivo: null, preview: null }); setBannerPc({ url: banner_pc_url, arquivo: null, preview: null }); setViasImpressao(String(vias)); salvo({ ...loja, ...dados })
@@ -1602,6 +1601,10 @@ function AbaLoja({ loja, salvo }: { loja: Loja; salvo: (l: Loja) => void }) {
       <label className="block"><span className="font-semibold">CPF ou CNPJ</span>
         <input className={campo} placeholder="Só números ou com pontuação" value={cpfCnpj} onChange={e => setCpfCnpj(e.target.value)} /></label>
       <label className="flex items-center gap-2"><input type="checkbox" checked={retirada} onChange={e => setRetirada(e.target.checked)} /> Aceitar retirada na loja</label>
+      <label className="block rounded-lg border border-neutral-200 p-3">
+        <span className="flex items-center gap-2 font-semibold"><input type="checkbox" checked={avisoWhats} onChange={e => setAvisoWhats(e.target.checked)} /> Avisar o cliente pelo WhatsApp ao mudar o status do pedido</span>
+        <span className="mt-1 block text-sm text-neutral-600">Ao clicar em <b>Iniciar preparo</b> ou <b>Saiu para entrega</b>, abre a conversa com o cliente no WhatsApp da loja com a mensagem pronta ("Pedido Confirmado ✅" ou "Seu Pedido saiu pra Entrega! 🛵"). É só tocar em enviar. No computador, deixe o WhatsApp Web aberto e permita as janelas (pop-ups) deste site.</span>
+      </label>
       <label className="block"><span className="font-semibold">Impressora dos pedidos</span>
         <input className={campo} placeholder="Ex.: Impressora térmica do balcão" value={impressora} onChange={e => setImpressora(e.target.value)} />
         <span className="mt-1 block text-sm text-neutral-600">
