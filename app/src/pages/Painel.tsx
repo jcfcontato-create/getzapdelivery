@@ -6,10 +6,10 @@ import Divulgacao from './Divulgacao'
 import { EsqueciSenha } from '../components/Senha'
 import { otimizarFoto, tamanhoLegivel, TAM_MAX_ORIGINAL } from '../lib/imagem'
 
-type Loja = { id: string; slug: string; nome: string; whatsapp: string; aberta: boolean; aceita_retirada: boolean; endereco: string | null; impressora: string | null; logo_url: string | null; banner_celular_url: string | null; banner_pc_url: string | null; cidade: string | null; uf: string | null; cep: string | null; tipo_cozinha: string | null; descricao_seo: string | null; email: string | null; cpf_cnpj: string | null; imprime_via_cozinha: boolean; vias_impressao: number; fonte_impressao?: number; plataforma_ativa: boolean; modulo_precificacao?: boolean; modulo_divulgacao?: boolean; cor: string }
+export type Loja = { id: string; slug: string; nome: string; whatsapp: string; aberta: boolean; aceita_retirada: boolean; endereco: string | null; impressora: string | null; logo_url: string | null; banner_celular_url: string | null; banner_pc_url: string | null; cidade: string | null; uf: string | null; cep: string | null; tipo_cozinha: string | null; descricao_seo: string | null; email: string | null; cpf_cnpj: string | null; imprime_via_cozinha: boolean; vias_impressao: number; fonte_impressao?: number; plataforma_ativa: boolean; modulo_precificacao?: boolean; modulo_divulgacao?: boolean; cor: string }
 type ItemAdEscolhido = { nome: string; qtd: number; preco_unit: number }
 type Item = { id: string; nome: string; qtd: number; preco_unit: number; itens_pedido_adicionais: ItemAdEscolhido[] }
-type Pedido = { id: string; numero: number; status: string; cliente_nome: string; cliente_telefone: string; tipo: string; mesa?: number | null; cidade?: string | null; bairro: string | null; endereco: string | null; pagamento: string; troco_para: string | null; observacao: string | null; subtotal: number; taxa_entrega: number; desconto: number; cupom_codigo: string | null; total: number; criado_em: string; itens_pedido: Item[] }
+export type Pedido = { id: string; numero: number; status: string; cliente_nome: string; cliente_telefone: string; tipo: string; mesa?: number | null; cidade?: string | null; bairro: string | null; endereco: string | null; pagamento: string; troco_para: string | null; observacao: string | null; subtotal: number; taxa_entrega: number; desconto: number; cupom_codigo: string | null; total: number; criado_em: string; itens_pedido: Item[] }
 type Cat = { id: string; nome: string; ordem: number }
 type Prod = { id: string; categoria_id: string; nome: string; descricao: string | null; preco: number; ativo: boolean; foto_url: string | null; dias_semana: number[] | null }
 type Zona = { id: string; cidade: string; bairro: string; taxa: number }
@@ -95,7 +95,7 @@ td{vertical-align:top;padding:1px 0}.d{text-align:right;white-space:nowrap}.b{fo
 <h2>${titulo ?? 'PEDIDO #' + p.numero}</h2>
 <p>${data}</p><hr>
 <p class="b">${esc(p.cliente_nome)}</p>${semPreco ? '' : `<p>${esc(p.cliente_telefone)}</p>`}
-<p${p.tipo === 'mesa' ? ` class="b" style="font-size:${fs + 4}px"` : ''}>${p.tipo === 'entrega' ? `ENTREGA: ${esc(p.endereco ?? '')}, ${esc(p.bairro ?? '')}${p.cidade ? ' - ' + esc(p.cidade) : ''}` : p.tipo === 'mesa' ? `MESA ${p.mesa ?? ''}` : 'RETIRADA NA LOJA'}</p><hr>
+<p${p.tipo === 'mesa' ? ` class="b" style="font-size:${fs + 4}px"` : ''}>${p.tipo === 'entrega' ? `ENTREGA: ${esc(p.endereco ?? '')}, ${esc(p.bairro ?? '')}${p.cidade ? ' - ' + esc(p.cidade) : ''}` : p.tipo === 'mesa' ? `MESA ${p.mesa ?? ''}` : p.tipo === 'balcao' ? 'VENDA NO BALCÃO' : 'RETIRADA NA LOJA'}</p><hr>
 <table>${linhas}</table><hr>
 ${totais}
 ${p.observacao ? `<p>Obs: ${esc(p.observacao)}</p>` : ''}
@@ -111,7 +111,7 @@ ${p.observacao ? `<p>Obs: ${esc(p.observacao)}</p>` : ''}
 // Cada via sai em sequência, com um intervalo, para não sobrepor as janelas de impressão.
 // Devolve quanto tempo (ms) essa impressão toda vai levar, para quem chama poder
 // enfileirar a impressão do próximo pedido só depois.
-function imprimirConformeConfig(p: Pedido, loja: Loja, atraso = 0): number {
+export function imprimirConformeConfig(p: Pedido, loja: Loja, atraso = 0): number {
   const vias = Math.min(5, Math.max(1, loja.vias_impressao || 1))
   for (let i = 0; i < vias; i++) setTimeout(() => imprimirPedido(p, loja), atraso + i * 1200)
   if (loja.imprime_via_cozinha) setTimeout(() => imprimirPedido(p, loja, `COZINHA #${p.numero}`, true), atraso + vias * 1200)
@@ -279,7 +279,7 @@ function Area() {
   return (
     <div className="mx-auto min-h-screen max-w-3xl bg-neutral-50 pb-16">
       <header className="flex flex-wrap items-center justify-between gap-2 bg-[#1B2A4A] px-4 py-3 text-white">
-        <div><p className="font-bold">{loja.nome}</p><a className="text-sm underline" href={`/${loja.slug}`} target="_blank" rel="noreferrer">Ver cardápio</a> · <a className="text-sm underline" href="/monitor" target="_blank" rel="noreferrer">Abrir monitor</a></div>
+        <div><p className="font-bold">{loja.nome}</p><a className="text-sm underline" href={`/${loja.slug}`} target="_blank" rel="noreferrer">Ver cardápio</a> · <a className="text-sm underline" href="/monitor" target="_blank" rel="noreferrer">Abrir monitor</a> · <a className="text-sm font-bold underline" href="/pdv" target="_blank" rel="noreferrer">PDV</a></div>
         <div className="flex flex-wrap items-center gap-3">
           <button onClick={alternar} className={`rounded-full px-4 py-2 font-bold ${loja.aberta ? 'bg-[#1A7F37]' : 'bg-red-700'}`}>{loja.aberta ? 'Loja aberta' : 'Loja fechada'}</button>
           <button onClick={alternarSom} aria-pressed={som} className={`flex items-center gap-2 rounded-full border-2 px-3 py-2 font-bold ${som ? 'border-white text-white' : 'border-neutral-400 text-neutral-300'}`}>
@@ -422,7 +422,7 @@ function Pedidos({ loja, versao, impAuto, alternarImp, modo = 'geral', buscaMesa
                 <span className="text-sm text-neutral-600">{new Date(p.criado_em).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>
               </div>
               <p className="text-sm font-semibold">{STATUS[p.status]}</p>
-              <p className="text-sm text-neutral-600">{p.tipo === 'entrega' ? `Entrega: ${p.endereco}, ${p.bairro}${p.cidade ? ` - ${p.cidade}` : ''}` : p.tipo === 'mesa' ? `Pedido na mesa ${p.mesa}` : 'Retirada na loja'}</p>
+              <p className="text-sm text-neutral-600">{p.tipo === 'entrega' ? `Entrega: ${p.endereco}, ${p.bairro}${p.cidade ? ` - ${p.cidade}` : ''}` : p.tipo === 'mesa' ? `Pedido na mesa ${p.mesa}` : p.tipo === 'balcao' ? 'Venda no balcão (PDV)' : 'Retirada na loja'}</p>
               {(() => { const editavel = !['entregue', 'cancelado'].includes(p.status); return (<>
               <ul className="my-2">{p.itens_pedido.map((i, k) => (
                 <li key={k} className="flex items-start justify-between gap-2">
@@ -2028,7 +2028,7 @@ function AbaRelatorios({ loja }: { loja: Loja }) {
       entregues.forEach(p => { const k = chave(p); const a = m.get(k) ?? { n: 0, v: 0 }; m.set(k, { n: a.n + 1, v: a.v + Number(p.total) }) })
       return [...m.entries()].map(([k, v]) => `<tr><td>${esc(k)} (${v.n})</td><td class="d">${R(v.v)}</td></tr>`).join('')
     }
-    const tipos: Record<string, string> = { entrega: 'Entrega', retirada: 'Retirada', mesa: 'Mesa' }
+    const tipos: Record<string, string> = { entrega: 'Entrega', retirada: 'Retirada', mesa: 'Mesa', balcao: 'Balcão' }
     const sub = entregues.reduce((s, p) => s + Number(p.subtotal), 0)
     const taxas = entregues.reduce((s, p) => s + Number(p.taxa_entrega), 0)
     const desc = entregues.reduce((s, p) => s + Number(p.desconto || 0), 0)

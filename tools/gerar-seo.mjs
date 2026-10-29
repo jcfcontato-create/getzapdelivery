@@ -188,6 +188,7 @@ Allow: /
 Disallow: /painel
 Disallow: /admin
 Disallow: /monitor
+Disallow: /pdv
 Disallow: /assinar
 Disallow: /seo/
 

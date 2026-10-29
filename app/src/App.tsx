@@ -5,6 +5,7 @@ import Admin from './pages/Admin'
 import Monitor from './pages/Monitor'
 import Assinar from './pages/Assinar'
 import Demonstracao from './pages/Demonstracao'
+import Pdv from './pages/Pdv'
 import { NovaSenha } from './components/Senha'
 
 export default function App() {
@@ -17,6 +18,7 @@ export default function App() {
       <Route path="/monitor" element={<Monitor />} />
       <Route path="/assinar" element={<Assinar />} />
       <Route path="/demonstracao" element={<Demonstracao />} />
+      <Route path="/pdv" element={<Pdv />} />
       <Route path="/:slug" element={<Cardapio />} />
     </Routes>
   </>)

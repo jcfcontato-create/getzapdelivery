@@ -8,7 +8,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2'
 import { CORS, json, asaas, PLANOS, type Plano, hojeSP, cpfCnpjValido, emailBoasVindas, emailLinkCadastro } from '../_shared/asaas.ts'
 
 const db = () => createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!)
-const RESERVADOS = new Set(['painel', 'admin', 'monitor', 'assinar', 'demonstracao', 'seo', 'assets', 'banners', 'api', 'www', 'app'])
+const RESERVADOS = new Set(['painel', 'admin', 'monitor', 'assinar', 'demonstracao', 'pdv', 'seo', 'assets', 'banners', 'api', 'www', 'app'])
 
 function slugify(s: string) {
   return s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'loja'

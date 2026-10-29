@@ -9,7 +9,7 @@ import { CORS, json, enviarEmail, SITE } from '../_shared/asaas.ts'
 const DIAS_DEMO = 15
 const MAX_POR_IP_DIA = 3
 const MAX_TOTAL_DIA = 40
-const RESERVADOS = new Set(['painel', 'admin', 'monitor', 'assinar', 'demonstracao', 'seo', 'assets', 'banners', 'api', 'www', 'app'])
+const RESERVADOS = new Set(['painel', 'admin', 'monitor', 'assinar', 'demonstracao', 'pdv', 'seo', 'assets', 'banners', 'api', 'www', 'app'])
 
 const esc = (s: string) => s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c] as string))
 function slugify(s: string) {
