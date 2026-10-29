@@ -6,7 +6,7 @@ import Divulgacao from './Divulgacao'
 import { EsqueciSenha } from '../components/Senha'
 import { otimizarFoto, tamanhoLegivel, TAM_MAX_ORIGINAL } from '../lib/imagem'
 
-export type Loja = { id: string; slug: string; nome: string; whatsapp: string; aberta: boolean; aceita_retirada: boolean; endereco: string | null; impressora: string | null; logo_url: string | null; banner_celular_url: string | null; banner_pc_url: string | null; cidade: string | null; uf: string | null; cep: string | null; tipo_cozinha: string | null; descricao_seo: string | null; email: string | null; cpf_cnpj: string | null; imprime_via_cozinha: boolean; vias_impressao: number; fonte_impressao?: number; plataforma_ativa: boolean; modulo_precificacao?: boolean; modulo_divulgacao?: boolean; cor: string }
+export type Loja = { id: string; slug: string; nome: string; whatsapp: string; aberta: boolean; aceita_retirada: boolean; endereco: string | null; impressora: string | null; logo_url: string | null; banner_celular_url: string | null; banner_pc_url: string | null; cidade: string | null; uf: string | null; cep: string | null; tipo_cozinha: string | null; descricao_seo: string | null; email: string | null; cpf_cnpj: string | null; imprime_via_cozinha: boolean; vias_impressao: number; fonte_impressao?: number; plataforma_ativa: boolean; modulo_precificacao?: boolean; modulo_divulgacao?: boolean; modulo_whatsapp?: boolean; cor: string }
 type ItemAdEscolhido = { nome: string; qtd: number; preco_unit: number }
 type Item = { id: string; nome: string; qtd: number; preco_unit: number; itens_pedido_adicionais: ItemAdEscolhido[] }
 export type Pedido = { id: string; numero: number; status: string; cliente_nome: string; cliente_telefone: string; tipo: string; mesa?: number | null; cidade?: string | null; bairro: string | null; endereco: string | null; pagamento: string; troco_para: string | null; observacao: string | null; subtotal: number; taxa_entrega: number; desconto: number; cupom_codigo: string | null; total: number; criado_em: string; itens_pedido: Item[] }
@@ -255,7 +255,7 @@ function Area() {
   useEffect(() => {
     ;(async () => {
       const { data: s } = await supabase.auth.getSession()
-      const { data, error } = await supabase.from('membros').select('lojas(id,slug,nome,whatsapp,aberta,aceita_retirada,endereco,impressora,logo_url,banner_celular_url,banner_pc_url,cidade,uf,cep,tipo_cozinha,descricao_seo,email,cpf_cnpj,imprime_via_cozinha,vias_impressao,fonte_impressao,plataforma_ativa,modulo_precificacao,modulo_divulgacao,cor)').eq('user_id', s.session?.user.id).limit(1)
+      const { data, error } = await supabase.from('membros').select('lojas(id,slug,nome,whatsapp,aberta,aceita_retirada,endereco,impressora,logo_url,banner_celular_url,banner_pc_url,cidade,uf,cep,tipo_cozinha,descricao_seo,email,cpf_cnpj,imprime_via_cozinha,vias_impressao,fonte_impressao,plataforma_ativa,modulo_precificacao,modulo_divulgacao,modulo_whatsapp,cor)').eq('user_id', s.session?.user.id).limit(1)
       if (error) setMsg(error.message)
       else if (!data || !data.length) setMsg('Este usuário ainda não está vinculado a uma loja. Fale com o suporte do GetZap.')
       else setLoja((data[0] as any).lojas)
@@ -385,7 +385,13 @@ function Pedidos({ loja, versao, impAuto, alternarImp, modo = 'geral', buscaMesa
   async function mover(p: Pedido, status: string) {
     if (AVISO_WHATSAPP_STATUS) avisarCliente(p, status)
     const { error } = await supabase.from('pedidos').update({ status }).eq('id', p.id)
-    if (error) setErro(error.message); else { carregar(); registrarLog(loja.id, `Pedido #${p.numero} alterado para "${STATUS[status] ?? status}"`) }
+    if (error) setErro(error.message); else { carregar(); registrarLog(loja.id, `Pedido #${p.numero} alterado para "${STATUS[status] ?? status}"`); avisarWhatsOficial(p, status) }
+  }
+  // WhatsApp oficial (número da plataforma): aviso automático ao cliente, se o admin ligou para a loja
+  async function avisarWhatsOficial(p: Pedido, status: string) {
+    if (!loja.modulo_whatsapp || !['em_preparo', 'saiu_para_entrega'].includes(status)) return
+    const { data } = await supabase.functions.invoke('whatsapp-enviar', { body: { pedido_id: p.id, evento: status } })
+    if (data?.motivo === 'erro_meta') setErro(`O aviso do pedido #${p.numero} não foi enviado pelo WhatsApp: ${data.erro}`)
   }
   async function excluirPedido(p: Pedido) {
     if (!confirm(`Excluir definitivamente o pedido #${p.numero}? Ele some da lista e também dos relatórios, e essa ação não pode ser desfeita.`)) return

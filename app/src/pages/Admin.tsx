@@ -2,7 +2,7 @@ import { type FormEvent, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { EsqueciSenha } from '../components/Senha'
 
-type LojaAdmin = { id: string; slug: string; nome: string; whatsapp: string; aberta: boolean; plataforma_ativa: boolean; modulo_precificacao: boolean; modulo_divulgacao: boolean; demo_ate: string | null; criada_em: string }
+type LojaAdmin = { id: string; slug: string; nome: string; whatsapp: string; aberta: boolean; plataforma_ativa: boolean; modulo_precificacao: boolean; modulo_divulgacao: boolean; modulo_whatsapp: boolean; demo_ate: string | null; criada_em: string }
 type PedidoResumo = { loja_id: string; total: number }
 
 const campo = 'w-full rounded-lg border border-neutral-300 bg-white px-3 py-2'
@@ -79,7 +79,7 @@ function Painel() {
   const [mostrarForm, setMostrarForm] = useState(false)
 
   async function carregar() {
-    const { data, error } = await supabase.from('lojas').select('id,slug,nome,whatsapp,aberta,plataforma_ativa,modulo_precificacao,modulo_divulgacao,demo_ate,criada_em').order('criada_em', { ascending: false })
+    const { data, error } = await supabase.from('lojas').select('id,slug,nome,whatsapp,aberta,plataforma_ativa,modulo_precificacao,modulo_divulgacao,modulo_whatsapp,demo_ate,criada_em').order('criada_em', { ascending: false })
     if (error) setErro(error.message); else setLojas(data as LojaAdmin[])
   }
   useEffect(() => { carregar() }, [])
@@ -91,6 +91,10 @@ function Painel() {
   async function encerrarDemo(l: LojaAdmin) {
     if (!confirm(`Encerrar a demonstração de "${l.nome}"? A loja passa a ser tratada como cliente normal.`)) return
     const { error } = await supabase.from('lojas').update({ demo_ate: null }).eq('id', l.id)
+    if (error) setErro(error.message); else carregar()
+  }
+  async function alternarWhatsapp(l: LojaAdmin) {
+    const { error } = await supabase.from('lojas').update({ modulo_whatsapp: !l.modulo_whatsapp }).eq('id', l.id)
     if (error) setErro(error.message); else carregar()
   }
   async function alternarDivulgacao(l: LojaAdmin) {
@@ -124,7 +128,7 @@ function Painel() {
         {lojas === null ? <p>Carregando…</p> : lojas.length === 0 ? <p>Nenhuma loja cadastrada ainda.</p> : (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
-              <thead><tr className="border-b"><th className="py-2 pr-3">Loja</th><th className="py-2 pr-3">Endereço</th><th className="py-2 pr-3">WhatsApp</th><th className="py-2 pr-3">Status</th><th className="py-2 pr-3">Precificação</th><th className="py-2 pr-3">Divulgação</th><th className="py-2 pr-3">Ações</th></tr></thead>
+              <thead><tr className="border-b"><th className="py-2 pr-3">Loja</th><th className="py-2 pr-3">Endereço</th><th className="py-2 pr-3">WhatsApp</th><th className="py-2 pr-3">Status</th><th className="py-2 pr-3">Precificação</th><th className="py-2 pr-3">Divulgação</th><th className="py-2 pr-3">WhatsApp oficial</th><th className="py-2 pr-3">Ações</th></tr></thead>
               <tbody>
                 {lojas.map(l => (
                   <tr key={l.id} className="border-b align-top">
@@ -147,6 +151,12 @@ function Painel() {
                       <label className="flex cursor-pointer items-center gap-2 whitespace-nowrap">
                         <input type="checkbox" checked={l.modulo_divulgacao} onChange={() => alternarDivulgacao(l)} />
                         {l.modulo_divulgacao ? <span className="text-green-700">Habilitada</span> : <span className="text-neutral-500">Desabilitada</span>}
+                      </label>
+                    </td>
+                    <td className="py-2 pr-3">
+                      <label className="flex cursor-pointer items-center gap-2 whitespace-nowrap">
+                        <input type="checkbox" checked={l.modulo_whatsapp} onChange={() => alternarWhatsapp(l)} />
+                        {l.modulo_whatsapp ? <span className="text-green-700">Habilitado</span> : <span className="text-neutral-500">Desabilitado</span>}
                       </label>
                     </td>
                     <td className="py-2 pr-3">
