@@ -25,3 +25,5 @@ senão o `supabase db push` reclama de versões remotas que não existem na past
 ## "failed to connect to postgres ... 127.0.0.1:54322" no db push
 Em nov/2026 uma versão nova da CLI do Supabase (o workflow usa `version: latest`) passou a tentar o banco
 local por padrão. Correção: usar `supabase db push --linked` no deploy.yml.
+Na mesma versão, `supabase functions deploy` passou a pedir confirmação ("Confirmation required") e falhava
+sem terminal. Correção: acrescentar `--yes` em cada `supabase functions deploy`.
