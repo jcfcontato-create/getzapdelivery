@@ -21,3 +21,7 @@ atualizar o segredo em GitHub → Settings → Secrets and variables → Actions
 Se for preciso aplicar uma migração direto no Supabase (ex.: CI fora do ar), escreva o SQL de forma idempotente
 e depois acerte o histórico para o número do arquivo (ex.: `0038`) em `supabase_migrations.schema_migrations`;
 senão o `supabase db push` reclama de versões remotas que não existem na pasta `supabase/migrations`.
+
+## "failed to connect to postgres ... 127.0.0.1:54322" no db push
+Em nov/2026 uma versão nova da CLI do Supabase (o workflow usa `version: latest`) passou a tentar o banco
+local por padrão. Correção: usar `supabase db push --linked` no deploy.yml.
