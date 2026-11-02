@@ -116,6 +116,8 @@ export function imprimirConformeConfig(p: Pedido, loja: Loja, atraso = 0): numbe
   return (vias + (loja.imprime_via_cozinha ? 1 : 0)) * 1200
 }
 const pedidoTeste: Pedido = { id: 'teste', numero: 0, status: 'novo', cliente_nome: 'Cliente de teste', cliente_telefone: '(00) 00000-0000', tipo: 'entrega', bairro: 'Centro', endereco: 'Rua Exemplo, 1', pagamento: 'pix', troco_para: null, observacao: 'Se este papel saiu, a impressão está funcionando.', subtotal: 10, taxa_entrega: 5, desconto: 0, cupom_codigo: null, total: 15, criado_em: new Date().toISOString(), itens_pedido: [{ id: 'teste', nome: 'Produto de teste', qtd: 1, preco_unit: 10, itens_pedido_adicionais: [] }] }
+const Icone = ({ d }: { d: string }) => <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d={d} /></svg>
+const Externo = () => <svg aria-hidden="true" viewBox="0 0 24 24" className="hidden h-3 w-3 shrink-0 opacity-80 sm:block" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5" /></svg>
 const Erro = ({ m }: { m: string }) => (m ? <p role="alert" className="my-2 rounded-lg bg-red-100 p-3 text-red-800">{m}</p> : null)
 
 export default function Painel() {
@@ -277,7 +279,21 @@ function Area() {
   return (
     <div className="mx-auto min-h-screen max-w-3xl bg-neutral-50 pb-16">
       <header className="flex flex-wrap items-center justify-between gap-2 bg-[#1B2A4A] px-4 py-3 text-white">
-        <div><p className="font-bold">{loja.nome}</p><a className="text-sm underline" href={`/${loja.slug}`} target="_blank" rel="noreferrer">Ver cardápio</a> · <a className="text-sm underline" href="/monitor" target="_blank" rel="noreferrer">Abrir monitor</a> · <a className="text-sm font-bold underline" href="/pdv" target="_blank" rel="noreferrer">PDV</a></div>
+        <div className="min-w-0">
+          <p className="font-bold">{loja.nome}</p>
+          {/* Atalhos que abrem em outra aba: botões (não abas), com o PDV em destaque por ser o mais usado no caixa */}
+          <nav aria-label="Atalhos" className="mt-2 grid grid-cols-3 gap-2 sm:flex">
+            <a href="/pdv" target="_blank" rel="noreferrer" title="Abrir o PDV em outra aba" className="flex items-center justify-center gap-1.5 rounded-lg bg-[#F28C28] px-3 py-2 text-sm font-extrabold text-white shadow hover:bg-[#e07b16]">
+              <Icone d="M3 4h2l2.4 10.2a1 1 0 0 0 1 .8h8.9a1 1 0 0 0 1-.8L20 7H6.2M9 19.5a1 1 0 1 0 0 .01M17 19.5a1 1 0 1 0 0 .01" />PDV<Externo />
+            </a>
+            <a href="/monitor" target="_blank" rel="noreferrer" title="Abrir o monitor de pedidos em outra aba" className="flex items-center justify-center gap-1.5 rounded-lg bg-white/15 px-3 py-2 text-sm font-bold text-white ring-1 ring-white/30 hover:bg-white/25">
+              <Icone d="M4 5h16v11H4zM9 20h6M12 16v4" />Monitor<Externo />
+            </a>
+            <a href={`/${loja.slug}`} target="_blank" rel="noreferrer" title="Ver o cardápio como o cliente vê" className="flex items-center justify-center gap-1.5 rounded-lg bg-white/15 px-3 py-2 text-sm font-bold text-white ring-1 ring-white/30 hover:bg-white/25">
+              <Icone d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12zM12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" />Cardápio<Externo />
+            </a>
+          </nav>
+        </div>
         <div className="flex flex-wrap items-center gap-3">
           <button onClick={alternar} className={`rounded-full px-4 py-2 font-bold ${loja.aberta ? 'bg-[#1A7F37]' : 'bg-red-700'}`}>{loja.aberta ? 'Loja aberta' : 'Loja fechada'}</button>
           <button onClick={alternarSom} aria-pressed={som} className={`flex items-center gap-2 rounded-full border-2 px-3 py-2 font-bold ${som ? 'border-white text-white' : 'border-neutral-400 text-neutral-300'}`}>
