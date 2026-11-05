@@ -588,8 +588,8 @@ function AcrescentarItem({ produtos, adicionar }: { produtos: { id: string; nome
 
 const TAM_MAX_FOTO = 5 * 1024 * 1024
 
-function FormProduto({ loja, cats, grupos, gruposIniciais, sugestoesIniciais, diasHabilitados, p, feito, erro }: { loja: Loja; cats: Cat[]; grupos: Grupo[]; gruposIniciais?: string[]; sugestoesIniciais?: string[]; diasHabilitados: number[]; p?: Prod; feito: () => void; erro: (m: string) => void }) {
-  const vazio = { nome: '', descricao: '', preco: '', categoria_id: cats[0]?.id ?? '', ativo: true, foto_url: null as string | null }
+function FormProduto({ loja, cats, grupos, gruposIniciais, sugestoesIniciais, diasHabilitados, p, categoriaInicial, feito, erro }: { loja: Loja; cats: Cat[]; grupos: Grupo[]; gruposIniciais?: string[]; sugestoesIniciais?: string[]; diasHabilitados: number[]; p?: Prod; categoriaInicial?: string; feito: () => void; erro: (m: string) => void }) {
+  const vazio = { nome: '', descricao: '', preco: '', categoria_id: categoriaInicial ?? cats[0]?.id ?? '', ativo: true, foto_url: null as string | null }
   const [f, setF] = useState(p ? { nome: p.nome, descricao: p.descricao ?? '', preco: String(p.preco).replace('.', ','), categoria_id: p.categoria_id, ativo: p.ativo, foto_url: p.foto_url } : vazio)
   const [fotoArquivo, setFotoArquivo] = useState<File | null>(null)
   const [fotoPreview, setFotoPreview] = useState<string | null>(null)
@@ -831,6 +831,9 @@ function AbaCardapio({ loja }: { loja: Loja }) {
   const [salvoOk, setSalvoOk] = useState(false)
   const timerSalvo = useRef<number | undefined>(undefined)
   const avisarSalvo = () => { setSalvoOk(true); window.clearTimeout(timerSalvo.current); timerSalvo.current = window.setTimeout(() => setSalvoOk(false), 2500) }
+  // Categorias fechadas por padrão: o dono abre só a que vai mexer (evita cadastrar produto na categoria errada)
+  const [catsAbertas, setCatsAbertas] = useState<string[]>([])
+  const alternarCat = (id: string) => setCatsAbertas(l => (l.includes(id) ? l.filter(x => x !== id) : [...l, id]))
   const indisponiveis = prods.filter(p => !p.ativo)
   const nomeCat = (id: string) => cats.find(c => c.id === id)?.nome ?? ''
   async function reativar(lista: Prod[]) {
@@ -895,14 +898,19 @@ function AbaCardapio({ loja }: { loja: Loja }) {
         const buscaLimpa = busca.trim().toLowerCase()
         const produtosCategoria = prods.filter(p => p.categoria_id === c.id && (!buscaLimpa || p.nome.toLowerCase().includes(buscaLimpa)))
         if (buscaLimpa && produtosCategoria.length === 0) return null
+        const aberta = !!buscaLimpa || catsAbertas.includes(c.id)
         return (
-          <div key={c.id}>
+          <div key={c.id} className={`rounded-xl border bg-white p-3 ${aberta ? 'border-[#1B2A4A] shadow-sm' : 'border-neutral-200'}`}>
             <CategoriaLinha cat={c} loja={loja} qtdProdutos={prods.filter(p => p.categoria_id === c.id).length}
-              qtdAtivos={prods.filter(p => p.categoria_id === c.id && p.ativo).length}
+              qtdAtivos={prods.filter(p => p.categoria_id === c.id && p.ativo).length} aberta={aberta} alternar={() => alternarCat(c.id)}
               podeSubir={i > 0} podeDescer={i < cats.length - 1} mover={d => moverCat(i, d)} feito={carregar} erro={setErro} />
-            <div className="mt-2 space-y-2">
+            {aberta && <div className="mt-2 space-y-2">
               {produtosCategoria.map(p => <FormProduto key={p.id + p.preco + p.nome + p.ativo + (ligacoes[p.id]?.join(',') ?? '') + (sugestoes[p.id]?.join(',') ?? '') + (p.dias_semana?.join(',') ?? '')} loja={loja} cats={cats} grupos={grupos} gruposIniciais={ligacoes[p.id] ?? []} sugestoesIniciais={sugestoes[p.id] ?? []} diasHabilitados={diasHabilitados} p={p} feito={carregar} erro={setErro} />)}
-            </div>
+              <details className="rounded-lg bg-neutral-100 p-2">
+                <summary className="cursor-pointer text-sm font-semibold">+ Novo produto em "{c.nome}"</summary>
+                <div className="mt-2"><FormProduto loja={loja} cats={cats} grupos={grupos} categoriaInicial={c.id} diasHabilitados={diasHabilitados} feito={carregar} erro={setErro} /></div>
+              </details>
+            </div>}
           </div>
         )
       })}
@@ -913,7 +921,7 @@ function AbaCardapio({ loja }: { loja: Loja }) {
   )
 }
 
-function CategoriaLinha({ cat, loja, qtdProdutos, qtdAtivos, podeSubir, podeDescer, mover, feito, erro }: { cat: Cat; loja: Loja; qtdProdutos: number; qtdAtivos: number; podeSubir: boolean; podeDescer: boolean; mover: (d: -1 | 1) => void; feito: () => void; erro: (m: string) => void }) {
+function CategoriaLinha({ cat, loja, qtdProdutos, qtdAtivos, aberta = true, alternar, podeSubir, podeDescer, mover, feito, erro }: { cat: Cat; loja: Loja; qtdProdutos: number; qtdAtivos: number; aberta?: boolean; alternar?: () => void; podeSubir: boolean; podeDescer: boolean; mover: (d: -1 | 1) => void; feito: () => void; erro: (m: string) => void }) {
   const [editando, setEditando] = useState(false)
   const [nome, setNome] = useState(cat.nome)
   async function salvar(e: FormEvent) {
@@ -950,7 +958,11 @@ function CategoriaLinha({ cat, loja, qtdProdutos, qtdAtivos, podeSubir, podeDesc
           <button type="button" aria-label={`Mover "${cat.nome}" para cima`} disabled={!podeSubir} onClick={() => mover(-1)} className="leading-none text-neutral-500 disabled:opacity-20">▲</button>
           <button type="button" aria-label={`Mover "${cat.nome}" para baixo`} disabled={!podeDescer} onClick={() => mover(1)} className="leading-none text-neutral-500 disabled:opacity-20">▼</button>
         </div>
-        <h2 className="text-lg font-bold">{cat.nome}</h2>
+        <button type="button" onClick={alternar} aria-expanded={aberta} className="ml-1 flex min-w-0 items-center gap-3 text-left">
+          <span aria-hidden="true" className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-xl font-bold ${aberta ? 'bg-[#1B2A4A] text-white' : 'bg-neutral-200 text-neutral-700'}`}>{aberta ? '−' : '+'}</span>
+          <span className="min-w-0"><span className="block text-lg font-bold">{cat.nome}</span>
+            <span className="block text-sm text-neutral-500">{qtdProdutos} {qtdProdutos === 1 ? 'produto' : 'produtos'}{qtdProdutos > qtdAtivos ? ` · ${qtdProdutos - qtdAtivos} indisponível${qtdProdutos - qtdAtivos > 1 ? 'is' : ''}` : ''}</span></span>
+        </button>
       </div>
       <div className="flex gap-2 text-sm">
         <button type="button" className={claro} onClick={() => setEditando(true)}>Editar</button>
