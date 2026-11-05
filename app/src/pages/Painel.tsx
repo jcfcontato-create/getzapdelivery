@@ -1159,6 +1159,9 @@ function AbaAdicionais({ loja }: { loja: Loja }) {
     setDiasHabilitados([0, 1, 2, 3, 4, 5, 6].filter(d => !fechados.has(d)))
   }, [loja.id])
   useEffect(() => { carregar() }, [carregar])
+  // Grupos fechados por padrão: o dono abre só o grupo em que vai mexer (evita cadastrar item no grupo errado)
+  const [abertos, setAbertos] = useState<string[]>([])
+  const alternarGrupo = (id: string) => setAbertos(l => (l.includes(id) ? l.filter(x => x !== id) : [...l, id]))
   // Itens marcados como indisponíveis, para o dono reativar rápido
   const indisponiveis = itens.filter(i => !i.ativo)
   const nomeGrupo = (id: string) => grupos.find(g => g.id === id)?.nome ?? ''
@@ -1218,16 +1221,17 @@ function AbaAdicionais({ loja }: { loja: Loja }) {
         const grupoBate = !buscaLimpa || g.nome.toLowerCase().includes(buscaLimpa)
         const itensGrupo = itens.filter(i => i.grupo_id === g.id && (grupoBate || i.nome.toLowerCase().includes(buscaLimpa)))
         if (buscaLimpa && !grupoBate && itensGrupo.length === 0) return null
+        const aberto = !!buscaLimpa || abertos.includes(g.id)
         return (
-        <div key={g.id} className="rounded-xl border border-neutral-200 bg-white p-3">
-          <GrupoLinha grupo={g} loja={loja} feito={carregar} erro={setErro} salvo={avisarSalvo} />
-          <div className="mt-2 space-y-2 pl-2">
+        <div key={g.id} className={`rounded-xl border bg-white p-3 ${aberto ? 'border-[#1B2A4A] shadow-sm' : 'border-neutral-200'}`}>
+          <GrupoLinha grupo={g} loja={loja} feito={carregar} erro={setErro} salvo={avisarSalvo} aberto={aberto} qtdItens={itens.filter(i => i.grupo_id === g.id).length} alternar={() => alternarGrupo(g.id)} />
+          {aberto && <div className="mt-2 space-y-2 pl-2">
             {itensGrupo.map(i => <FormItemAdicional key={i.id + i.nome + i.preco + i.ativo + (i.dias_semana?.join(',') ?? '')} grupoId={g.id} loja={loja} item={i} diasHabilitados={diasHabilitados} feito={carregar} erro={setErro} salvo={avisarSalvo} />)}
             <details className="rounded-lg bg-neutral-100 p-2">
-              <summary className="cursor-pointer text-sm font-semibold">Novo item neste grupo</summary>
+              <summary className="cursor-pointer text-sm font-semibold">+ Novo item em "{g.nome}"</summary>
               <div className="mt-2"><FormItemAdicional grupoId={g.id} loja={loja} diasHabilitados={diasHabilitados} feito={carregar} erro={setErro} /></div>
             </details>
-          </div>
+          </div>}
         </div>
         )
       })}
@@ -1238,7 +1242,7 @@ function AbaAdicionais({ loja }: { loja: Loja }) {
   )
 }
 
-function GrupoLinha({ grupo, loja, feito, erro, salvo }: { grupo: Grupo; loja: Loja; feito: () => void; erro: (m: string) => void; salvo?: () => void }) {
+function GrupoLinha({ grupo, loja, feito, erro, salvo, aberto = true, qtdItens, alternar }: { grupo: Grupo; loja: Loja; feito: () => void; erro: (m: string) => void; salvo?: () => void; aberto?: boolean; qtdItens?: number; alternar?: () => void }) {
   const [editando, setEditando] = useState(false)
   const [nome, setNome] = useState(grupo.nome)
   const [tipo, setTipo] = useState(grupo.tipo)
@@ -1278,10 +1282,13 @@ function GrupoLinha({ grupo, loja, feito, erro, salvo }: { grupo: Grupo; loja: L
   }
   return (
     <div className="flex items-center justify-between gap-2">
-      <div>
-        <h3 className="font-bold">{grupo.nome}</h3>
-        <p className="text-sm text-neutral-500">{grupo.tipo === 'unica' ? 'Seleção única' : `Seleção múltipla${grupo.maximo ? `, até ${grupo.maximo}` : ', sem limite'}`}{grupo.obrigatorio ? ' · Obrigatório' : ''}</p>
-      </div>
+      <button type="button" onClick={alternar} aria-expanded={aberto} className="flex min-w-0 flex-1 items-center gap-3 text-left">
+        <span aria-hidden="true" className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-xl font-bold ${aberto ? 'bg-[#1B2A4A] text-white' : 'bg-neutral-200 text-neutral-700'}`}>{aberto ? '−' : '+'}</span>
+        <span className="min-w-0">
+          <span className="block font-bold">{grupo.nome}{qtdItens !== undefined && <span className="ml-2 text-sm font-normal text-neutral-500">({qtdItens} {qtdItens === 1 ? 'item' : 'itens'})</span>}</span>
+          <span className="block text-sm text-neutral-500">{grupo.tipo === 'unica' ? 'Seleção única' : `Seleção múltipla${grupo.maximo ? `, até ${grupo.maximo}` : ', sem limite'}`}{grupo.obrigatorio ? ' · Obrigatório' : ''}</span>
+        </span>
+      </button>
       <div className="flex gap-2 text-sm">
         <button type="button" className={laranja} onClick={() => setEditando(true)}>Editar</button>
         <button type="button" className={vermelho} onClick={excluir}>Excluir</button>
