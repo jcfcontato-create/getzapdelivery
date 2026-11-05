@@ -1790,7 +1790,7 @@ function FormCupom({ loja, cupom, cats, prods, proximaOrdem, feito, erro }: { lo
   const [validoAte, setValidoAte] = useState(cupom?.valido_ate ?? '')
   const [limiteTotal, setLimiteTotal] = useState(cupom?.limite_uso_total != null ? String(cupom.limite_uso_total) : '')
   const [limitePorCliente, setLimitePorCliente] = useState(cupom?.limite_uso_por_cliente != null ? String(cupom.limite_uso_por_cliente) : '1')
-  const [ativo, setAtivo] = useState(cupom?.ativo ?? true)
+  const [ativo, setAtivo] = useState(cupom?.ativo ?? false)
   const [produtosSel, setProdutosSel] = useState<string[]>(cupom?.cupom_produtos.map(x => x.produto_id) ?? [])
   const [categoriasSel, setCategoriasSel] = useState<string[]>(cupom?.cupom_categorias.map(x => x.categoria_id) ?? [])
   const [salvando, setSalvando] = useState(false)
@@ -1836,7 +1836,7 @@ function FormCupom({ loja, cupom, cats, prods, proximaOrdem, feito, erro }: { lo
     setSalvando(false)
     erro('')
     registrarLog(loja.id, cupom ? `Cupom editado: "${dados.codigo}"` : `Cupom criado: "${dados.codigo}"`)
-    if (!cupom) { setCodigo(''); setValor(''); setProdutosSel([]); setCategoriasSel([]); setAberto(false) }
+    if (!cupom) { setCodigo(''); setValor(''); setProdutosSel([]); setCategoriasSel([]); setAtivo(false); setAberto(false) }
     feito()
   }
   async function excluir() {
