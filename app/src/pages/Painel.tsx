@@ -710,15 +710,19 @@ function FormProduto({ loja, cats, grupos, gruposIniciais, sugestoesIniciais, di
   const mostrarFoto = fotoPreview || f.foto_url
   return (
     <form onSubmit={salvar} className="grid gap-2 rounded-xl border border-neutral-200 bg-white p-3">
-      <input className={campo} placeholder="Nome do produto" value={f.nome} onChange={e => set('nome', e.target.value)} />
-      <input className={campo} placeholder="Descrição (opcional)" value={f.descricao} onChange={e => set('descricao', e.target.value)} />
+      <label className="block"><span className="mb-1 block text-sm font-bold">Nome do produto</span>
+        <input className={campo} placeholder="Ex.: X-Burger" value={f.nome} onChange={e => set('nome', e.target.value)} /></label>
+      <label className="block"><span className="mb-1 block text-sm font-bold">Descrição <span className="font-normal text-neutral-500">(opcional)</span></span>
+        <input className={campo} placeholder="Ex.: Pão, hambúrguer 150 g, queijo e salada" value={f.descricao} onChange={e => set('descricao', e.target.value)} /></label>
       <div className="grid grid-cols-2 gap-2">
-        <input className={campo} placeholder="Preço, ex.: 9,50" inputMode="decimal" value={f.preco} onChange={e => set('preco', e.target.value)} />
-        <select className={campo} value={f.categoria_id} onChange={e => set('categoria_id', e.target.value)}>{cats.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}</select>
+        <label className="block"><span className="mb-1 block text-sm font-bold">Preço (R$)</span>
+          <input className={campo} placeholder="Ex.: 9,50" inputMode="decimal" value={f.preco} onChange={e => set('preco', e.target.value)} /></label>
+        <label className="block"><span className="mb-1 block text-sm font-bold">Categoria</span>
+          <select className={campo} value={f.categoria_id} onChange={e => set('categoria_id', e.target.value)}>{cats.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}</select></label>
       </div>
       <p className="text-sm text-neutral-600">Se o preço muda conforme o tamanho (ex.: marmita P/M/G), coloque <b>0</b> aqui e marque um grupo de "seleção única, obrigatório" abaixo com o preço de cada tamanho. O cardápio mostra "A partir de" automaticamente.</p>
       <div>
-        <span className="mb-1 block text-sm font-semibold">Foto do produto</span>
+        <span className="mb-1 block text-sm font-bold">Foto do produto</span>
         <div className="flex items-center gap-3">
           {mostrarFoto ? (
             <img src={mostrarFoto} alt="" className="h-16 w-16 rounded-lg border border-neutral-300 object-cover" />
@@ -735,9 +739,9 @@ function FormProduto({ loja, cats, grupos, gruposIniciais, sugestoesIniciais, di
         </div>
         {infoFoto && <p className="mt-1 text-sm text-green-700">{infoFoto}</p>}
       </div>
-      <label className="flex items-center gap-2"><input type="checkbox" checked={f.ativo} onChange={e => set('ativo', e.target.checked)} /> Disponível no cardápio</label>
+      <label className="flex items-center gap-2 font-bold"><input type="checkbox" checked={f.ativo} onChange={e => set('ativo', e.target.checked)} /> Disponível no cardápio</label>
       <div>
-        <span className="mb-1 block text-sm font-semibold">Dias da semana em que este produto é vendido</span>
+        <span className="mb-1 block text-sm font-bold">Dias da semana em que este produto é vendido</span>
         <p className="mb-1 text-sm text-neutral-600">Deixe tudo desmarcado para vender todos os dias. Marque só os dias em que esse prato específico fica disponível (ex.: feijoada só no sábado).</p>
         <div className="flex flex-wrap gap-2 rounded-lg border border-neutral-200 p-2">
           <label className="flex w-full items-center gap-1 border-b border-neutral-200 pb-2 text-sm font-semibold">
@@ -755,7 +759,7 @@ function FormProduto({ loja, cats, grupos, gruposIniciais, sugestoesIniciais, di
       </div>
       {grupos.length > 0 && (
         <div>
-          <span className="mb-1 block text-sm font-semibold">Adicionais deste produto</span>
+          <span className="mb-1 block text-sm font-bold">Adicionais deste produto</span>
           <div className="space-y-1 rounded-lg border border-neutral-200 p-2">
             {grupos.map(g => (
               <label key={g.id} className="flex items-center gap-2 text-sm">
@@ -768,7 +772,7 @@ function FormProduto({ loja, cats, grupos, gruposIniciais, sugestoesIniciais, di
       )}
       {cats.length > 0 && (
         <div>
-          <span className="mb-1 block text-sm font-semibold">Sugerir categorias após adicionar este produto</span>
+          <span className="mb-1 block text-sm font-bold">Sugerir categorias após adicionar este produto</span>
           <p className="mb-1 text-sm text-neutral-600">Assim que o cliente adiciona este produto ao carrinho, o cardápio sugere produtos dessas categorias (ex.: sugerir "Bebidas" ao adicionar uma pizza).</p>
           <div className="space-y-1 rounded-lg border border-neutral-200 p-2">
             {cats.map(c => (
@@ -884,10 +888,11 @@ function AbaCardapio({ loja }: { loja: Loja }) {
           </ul>
         </div>
       )}
-      <input className={campo} placeholder="Buscar produto pelo nome..." value={busca} onChange={e => setBusca(e.target.value)} />
-      <form onSubmit={addCat} className="flex gap-2">
-        <input className={campo} placeholder="Nova categoria (ex.: Bebidas)" value={nova} onChange={e => setNova(e.target.value)} />
-        <button className={botao}>Criar</button>
+      <label className="block"><span className="mb-1 block text-sm font-bold">Buscar produto</span>
+        <input className={campo} placeholder="Digite o nome do produto..." value={busca} onChange={e => setBusca(e.target.value)} /></label>
+      <form onSubmit={addCat}>
+        <label className="block"><span className="mb-1 block text-sm font-bold">Nova categoria</span>
+          <span className="flex gap-2"><input className={campo} placeholder="Ex.: Bebidas" value={nova} onChange={e => setNova(e.target.value)} /><button className={botao}>Criar</button></span></label>
       </form>
       {cats.length === 0 ? <p className="rounded-xl bg-white p-4">Crie uma categoria para começar a cadastrar produtos.</p> : (
         <details className="rounded-xl bg-neutral-100 p-3">
