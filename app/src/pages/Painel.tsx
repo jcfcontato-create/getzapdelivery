@@ -182,7 +182,8 @@ function Area() {
     return () => clearInterval(t)
   }, [loja?.id, loja?.modulo_divulgacao, aba, subLoja])
   const [versao, setVersao] = useState(0)
-  const [imprimir, setImprimir] = useState(() => { try { return localStorage.getItem('gz_imp') === '1' } catch { return false } })
+  // Impressão automática começa ligada; só fica desligada se a pessoa desligou neste computador
+  const [imprimir, setImprimir] = useState(() => { try { return localStorage.getItem('gz_imp') !== '0' } catch { return true } })
   const imprimirRef = useRef(imprimir)
   function alternarImp() {
     const novo = !imprimir
