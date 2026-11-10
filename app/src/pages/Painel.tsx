@@ -2024,6 +2024,8 @@ function AbaRelatorios({ loja }: { loja: Loja }) {
   const [carga, setCarga] = useState(true)
   const [erro, setErro] = useState('')
   const [pedidos, setPedidos] = useState<Pedido[]>([])
+  const [buscaCliente, setBuscaCliente] = useState('')
+  const [clienteAberto, setClienteAberto] = useState<string | null>(null)
 
   const intervalo = useCallback((): [Date, Date] => {
     const hoje = new Date(); hoje.setHours(0, 0, 0, 0)
@@ -2133,6 +2135,24 @@ td{vertical-align:top;padding:1px 0}.d{text-align:right;white-space:nowrap;paddi
   const maiorDia = Math.max(1, ...dias.map(([, v]) => v.total))
   const fmtDia = (iso: string) => new Date(iso + 'T00:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
 
+  // Gasto por cliente no período: agrupa os pedidos entregues pelo telefone (ou pelo nome, se não houver telefone)
+  const termoCli = buscaCliente.trim().toLowerCase()
+  const termoDig = buscaCliente.replace(/\D/g, '')
+  const clientes = (() => {
+    if (!termoCli) return []
+    const mapa = new Map<string, { nome: string; telefone: string; pedidos: Pedido[]; total: number }>()
+    entregues.forEach(p => {
+      const tel = (p.cliente_telefone || '').replace(/\D/g, '')
+      const bate = p.cliente_nome.toLowerCase().includes(termoCli) || (termoDig.length >= 3 && tel.includes(termoDig))
+      if (!bate) return
+      const chave = tel || 'nome:' + p.cliente_nome.trim().toLowerCase()
+      const atual = mapa.get(chave) ?? { nome: p.cliente_nome, telefone: p.cliente_telefone || '', pedidos: [], total: 0 }
+      atual.pedidos.push(p); atual.total += Number(p.total); atual.nome = p.cliente_nome
+      mapa.set(chave, atual)
+    })
+    return [...mapa.entries()].sort((a, b) => b[1].total - a[1].total)
+  })()
+
   return (
     <section className="space-y-4">
       <div className="flex flex-wrap gap-2">
@@ -2157,6 +2177,45 @@ td{vertical-align:top;padding:1px 0}.d{text-align:right;white-space:nowrap;paddi
             <div className="rounded-xl border border-neutral-200 bg-white p-3"><p className="text-sm text-neutral-600">Pedidos entregues</p><p className="text-xl font-bold text-[#1B2A4A]">{entregues.length}</p></div>
             <div className="rounded-xl border border-neutral-200 bg-white p-3"><p className="text-sm text-neutral-600">Ticket médio</p><p className="text-xl font-bold text-[#1B2A4A]">{R(ticket)}</p></div>
             <div className="rounded-xl border border-neutral-200 bg-white p-3"><p className="text-sm text-neutral-600">Em andamento / cancelados</p><p className="text-xl font-bold text-[#1B2A4A]">{emAndamento} / {cancelados}</p></div>
+          </div>
+
+          <div className="rounded-xl border border-neutral-200 bg-white p-3">
+            <h3 className="mb-2 font-bold">Gasto por cliente no período</h3>
+            <label className="block"><span className="mb-1 block text-sm font-bold">Buscar cliente</span>
+              <input className={campo} placeholder="Digite o nome ou o telefone do cliente" value={buscaCliente} onChange={e => { setBuscaCliente(e.target.value); setClienteAberto(null) }} /></label>
+            {termoCli && (clientes.length === 0
+              ? <p className="mt-2 text-neutral-600">Nenhum pedido entregue deste cliente no período escolhido.</p>
+              : <ul className="mt-2 divide-y divide-neutral-100">
+                  {clientes.map(([chave, c]) => {
+                    const aberto = clienteAberto === chave || clientes.length === 1
+                    return (
+                      <li key={chave} className="py-2">
+                        <button type="button" className="flex w-full flex-wrap items-center justify-between gap-2 text-left" onClick={() => setClienteAberto(aberto && clientes.length > 1 ? null : chave)}>
+                          <span><b>{c.nome}</b>{c.telefone && <span className="text-sm text-neutral-600"> · {c.telefone}</span>}<span className="block text-sm text-neutral-600">{c.pedidos.length} pedido{c.pedidos.length > 1 ? 's' : ''} · ticket médio {R(c.total / c.pedidos.length)}</span></span>
+                          <span className="text-lg font-extrabold text-[#1A7F37]">{R(c.total)}</span>
+                        </button>
+                        {aberto && (
+                          <div className="mt-2 overflow-x-auto rounded-lg bg-neutral-50 p-2">
+                            <table className="w-full min-w-[480px] text-sm">
+                              <thead><tr className="border-b border-neutral-200 text-left"><th className="py-1 pr-2">Data/Hora</th><th className="py-1 pr-2">Pedido</th><th className="py-1 pr-2">Itens</th><th className="py-1 text-right">Total</th></tr></thead>
+                              <tbody>
+                                {c.pedidos.map(p => (
+                                  <tr key={p.id} className="border-b border-neutral-100 align-top">
+                                    <td className="py-1 pr-2 whitespace-nowrap">{new Date(p.criado_em).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })}</td>
+                                    <td className="py-1 pr-2">#{p.numero}</td>
+                                    <td className="py-1 pr-2">{p.itens_pedido.map(i => `${i.qtd}x ${i.nome}`).join(', ')}</td>
+                                    <td className="py-1 text-right font-semibold">{R(p.total)}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                      </li>
+                    )
+                  })}
+                </ul>)}
+            <p className="mt-2 text-xs text-neutral-500">Considera os pedidos entregues no período escolhido nos botões acima.</p>
           </div>
 
           <div className="rounded-xl border border-neutral-200 bg-white p-3">
