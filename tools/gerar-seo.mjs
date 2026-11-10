@@ -183,6 +183,22 @@ ${lojas.filter(l => /^[a-z0-9-]+$/.test(l.slug)).map(l => `  <url><loc>${SITE}/$
 </urlset>
 `
   await writeFile(join(pasta, 'sitemap.xml'), sitemap)
+
+  // Sitemap de cada loja, servido em /<slug>/sitemap.xml (regra no .htaccess), para quem cadastra
+  // no Google Search Console a propriedade só do endereço da loja (ex.: .../adega-sos/).
+  const pastaSm = join(pasta, 'sitemaps')
+  await mkdir(pastaSm, { recursive: true })
+  const feitos = new Set()
+  for (const l of lojas.filter(l => /^[a-z0-9-]+$/.test(l.slug))) {
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>${SITE}/${l.slug}/</loc><lastmod>${hoje}</lastmod><changefreq>daily</changefreq></url>
+</urlset>
+`
+    await writeFile(join(pastaSm, `${l.slug}.xml`), xml)
+    feitos.add(`${l.slug}.xml`)
+  }
+  for (const f of await readdir(pastaSm)) if (!feitos.has(f)) await unlink(join(pastaSm, f))
   await writeFile(join(pasta, 'robots.txt'), `User-agent: *
 Allow: /
 Disallow: /painel

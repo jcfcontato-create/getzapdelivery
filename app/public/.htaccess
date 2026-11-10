@@ -7,6 +7,9 @@ RewriteRule ^index\.html$ - [L]
 # responde dentro do endereço de cada loja (ex.: /big-acai/googleXXXX.html), para propriedades por loja.
 RewriteRule ^[a-z0-9-]+/(google[0-9a-f]+\.html)$ /$1 [L]
 
+# Sitemap de cada loja (ex.: /adega-sos/sitemap.xml), gerado por tools/gerar-seo.mjs em /sitemaps/
+RewriteRule ^([a-z0-9-]+)/sitemap\.xml$ /sitemaps/$1.xml [L]
+
 # SEO: se existir a página pronta da loja (gerada por tools/gerar-seo.mjs em /seo/),
 # entrega ela no endereço normal do cardápio (ex.: /big-acai). O app abre por cima igual.
 RewriteCond %{REQUEST_URI} ^/([a-z0-9-]+)/?$
@@ -23,7 +26,7 @@ RewriteRule . /index.html [L]
 AddType application/manifest+json .webmanifest
 
 <IfModule mod_headers.c>
-  <FilesMatch "(\.html|\.webmanifest|config\.js|sitemap\.xml|robots\.txt)$">
+  <FilesMatch "(\.html|\.webmanifest|config\.js|\.xml|robots\.txt)$">
     Header set Cache-Control "no-cache, no-store, must-revalidate"
     Header set Pragma "no-cache"
     Header set Expires 0
