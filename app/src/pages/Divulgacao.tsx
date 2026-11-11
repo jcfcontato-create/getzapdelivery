@@ -249,9 +249,10 @@ function Criar({ loja, usados, setUsados, setErro, avisar, salvo }: { loja: Loja
           <p className="text-xs text-neutral-500">{formato === 'feed' ? 'No Instagram, escolha "Post". O formato 4:5 ocupa a tela toda sem cortar.' : 'No Instagram, escolha "Story" ou "Reel". Não use este formato em "Post": ele seria cortado.'}</p>
           <canvas ref={canvas} className={`mx-auto block w-full rounded-xl border border-neutral-200 shadow ${formato === 'story' ? 'max-w-[320px]' : 'max-w-[480px]'}`} />
           <div className="grid grid-cols-3 gap-2">
-            <button className={azul} onClick={acaoCompartilhar}>Compartilhar</button>
-            <button className={claro} onClick={acaoBaixar}>Baixar imagem</button>
-            <button className={claro} onClick={acaoCopiar}>Copiar texto</button>
+            {/* px menor e texto centralizado/quebrável: "Compartilhar" cabe no botão mesmo no celular */}
+            <button className={`${azul} flex items-center justify-center px-1 text-center text-sm leading-tight`} onClick={acaoCompartilhar}>Compartilhar</button>
+            <button className={`${claro} flex items-center justify-center px-1 text-center text-sm leading-tight`} onClick={acaoBaixar}>Baixar imagem</button>
+            <button className={`${claro} flex items-center justify-center px-1 text-center text-sm leading-tight`} onClick={acaoCopiar}>Copiar texto</button>
           </div>
           <div className={`${cartao} space-y-2`}>
             <label className="block"><span className="text-sm font-semibold">Agendar para (opcional)</span>
