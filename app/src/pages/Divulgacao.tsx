@@ -241,11 +241,12 @@ function Criar({ loja, usados, setUsados, setErro, avisar, salvo }: { loja: Loja
           <div className={`${cartao} flex min-h-64 items-center justify-center text-center text-neutral-500`}>A prévia da arte aparece aqui depois de gerar com a IA.</div>
         ) : (<>
           <div className="flex flex-wrap gap-2">
-            {([['feed', 'Feed (quadrado)'], ['story', 'Stories / Reels / TikTok']] as const).map(([id, nome]) => <button key={id} className={formato === id ? botao : claro} onClick={() => setFormato(id)}>{nome}</button>)}
+            {([['feed', 'Post do feed (4:5)'], ['story', 'Stories / Reels / TikTok']] as const).map(([id, nome]) => <button key={id} className={formato === id ? botao : claro} onClick={() => setFormato(id)}>{nome}</button>)}
           </div>
           <div className="flex flex-wrap gap-2">
             {MODELOS.map(m => <button key={m.id} className={`${modelo === m.id ? 'border-[#1B2A4A] bg-[#1B2A4A] text-white' : 'border-neutral-300 bg-white'} rounded-full border px-3 py-1 text-sm`} onClick={() => setModelo(m.id)}>{m.nome}</button>)}
           </div>
+          <p className="text-xs text-neutral-500">{formato === 'feed' ? 'No Instagram, escolha "Post". O formato 4:5 ocupa a tela toda sem cortar.' : 'No Instagram, escolha "Story" ou "Reel". Não use este formato em "Post": ele seria cortado.'}</p>
           <canvas ref={canvas} className={`mx-auto block w-full rounded-xl border border-neutral-200 shadow ${formato === 'story' ? 'max-w-[320px]' : 'max-w-[480px]'}`} />
           <div className="grid grid-cols-3 gap-2">
             <button className={azul} onClick={acaoCompartilhar}>Compartilhar</button>

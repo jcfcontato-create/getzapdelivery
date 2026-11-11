@@ -1,5 +1,7 @@
 // Monta a arte da postagem num <canvas>, usando a FOTO REAL do produto (sem alterar o lanche).
-// Formatos: feed (1080x1080, Facebook/Instagram) e story (1080x1920, Stories/Reels/TikTok).
+// Formatos: feed (1080x1350, retrato 4:5 — o maior que o Instagram e o Facebook aceitam no feed sem cortar)
+// e story (1080x1920, Stories/Reels/TikTok). O quadrado 1:1 foi trocado pelo 4:5 porque o Instagram
+// passou a ampliar e cortar as laterais de imagens quadradas ao postar pelo celular.
 
 export type Formato = 'feed' | 'story'
 export type Modelo = 'destaque' | 'moldura' | 'oferta'
@@ -96,7 +98,7 @@ function etiquetaPreco(ctx: CanvasRenderingContext2D, preco: string, cx: number,
 }
 
 export function desenharArte(canvas: HTMLCanvasElement, d: DadosArte, formato: Formato, modelo: Modelo) {
-  const W = 1080, H = formato === 'story' ? 1920 : 1080, st = formato === 'story'
+  const W = 1080, H = formato === 'story' ? 1920 : 1350, st = formato === 'story'
   canvas.width = W; canvas.height = H
   const ctx = canvas.getContext('2d')!
   const cor = corValida(d.cor), corTxt = contraste(cor)
@@ -109,44 +111,44 @@ export function desenharArte(canvas: HTMLCanvasElement, d: DadosArte, formato: F
     ctx.fillStyle = g; ctx.fillRect(0, 0, W, H)
     const topo = ctx.createLinearGradient(0, 0, 0, 220); topo.addColorStop(0, 'rgba(0,0,0,.55)'); topo.addColorStop(1, 'rgba(0,0,0,0)')
     ctx.fillStyle = topo; ctx.fillRect(0, 0, W, 220)
-    const yTopo = st ? 120 : 60
+    const yTopo = st ? 120 : 70
     selo(ctx, d, 60 + 52, yTopo + 52, 52)
     escrever(ctx, d.nomeLoja, 190, yTopo + 30, 560, 44, 1, '#FFFFFF', 'left', '800')
-    etiquetaPreco(ctx, d.preco, W - 190, yTopo + (st ? 230 : 160), st ? 150 : 130, cor, corTxt)
-    const baseY = H - (st ? 640 : 440)
-    let y = escrever(ctx, d.titulo.toUpperCase(), 60, baseY, W - 120, st ? 130 : 104, 2, '#FFFFFF')
-    y = escrever(ctx, d.subtitulo, 60, y + 16, W - 120, st ? 52 : 44, 2, 'rgba(255,255,255,.92)', 'left', '600')
-    botao(ctx, d.chamada, W / 2, Math.min(Math.max(y + 34, H - (st ? 300 : 170)), H - (st ? 180 : 100)), st ? 52 : 44, cor, corTxt)
+    etiquetaPreco(ctx, d.preco, W - 190, yTopo + (st ? 230 : 170), st ? 150 : 140, cor, corTxt)
+    const baseY = H - (st ? 640 : 520)
+    let y = escrever(ctx, d.titulo.toUpperCase(), 60, baseY, W - 120, st ? 130 : 112, 2, '#FFFFFF')
+    y = escrever(ctx, d.subtitulo, 60, y + 16, W - 120, st ? 52 : 46, 2, 'rgba(255,255,255,.92)', 'left', '600')
+    botao(ctx, d.chamada, W / 2, Math.min(Math.max(y + 34, H - (st ? 300 : 190)), H - (st ? 180 : 110)), st ? 52 : 46, cor, corTxt)
   } else if (modelo === 'moldura') {
     ctx.fillStyle = cor; ctx.fillRect(0, 0, W, H)
-    const yTopo = st ? 110 : 44
+    const yTopo = st ? 110 : 50
     selo(ctx, d, W / 2 - 230, yTopo + 44, 44)
     escrever(ctx, d.nomeLoja, W / 2 - 170, yTopo + 22, 600, 40, 1, corTxt, 'left', '800')
-    const fx = 60, fy = yTopo + 120, fw = W - 120, fh = st ? 960 : 470
+    const fx = 60, fy = yTopo + 120, fw = W - 120, fh = st ? 960 : 680
     ctx.save(); ctx.shadowColor = 'rgba(0,0,0,.3)'; ctx.shadowBlur = 30; retangulo(ctx, fx - 10, fy - 10, fw + 20, fh + 20, 46); ctx.fillStyle = '#FFFFFF'; ctx.fill(); ctx.restore()
     ctx.save(); retangulo(ctx, fx, fy, fw, fh, 38); ctx.clip(); cobrir(ctx, d.foto, fx, fy, fw, fh); ctx.restore()
-    etiquetaPreco(ctx, d.preco, fx + fw - 120, fy + fh - 40, st ? 140 : 115, '#FFFFFF', '#111111')
-    let y = escrever(ctx, d.titulo.toUpperCase(), 60, fy + fh + (st ? 90 : 50), W - 120, st ? 116 : 76, 2, corTxt, 'center')
-    y = escrever(ctx, d.subtitulo, 60, y + 10, W - 120, st ? 50 : 34, st ? 2 : 1, corTxt, 'center', '600')
-    botao(ctx, d.chamada, W / 2, y + (st ? 40 : 24), st ? 50 : 40, '#FFFFFF', '#111111')
+    etiquetaPreco(ctx, d.preco, fx + fw - 120, fy + fh - 40, st ? 140 : 125, '#FFFFFF', '#111111')
+    let y = escrever(ctx, d.titulo.toUpperCase(), 60, fy + fh + (st ? 90 : 60), W - 120, st ? 116 : 84, 2, corTxt, 'center')
+    y = escrever(ctx, d.subtitulo, 60, y + 10, W - 120, st ? 50 : 38, st ? 2 : 1, corTxt, 'center', '600')
+    botao(ctx, d.chamada, W / 2, y + (st ? 40 : 28), st ? 50 : 42, '#FFFFFF', '#111111')
   } else {
     ctx.fillStyle = '#111111'; ctx.fillRect(0, 0, W, H)
     // Faixa diagonal no topo
-    ctx.save(); ctx.translate(W / 2, st ? 210 : 110); ctx.rotate(-0.05)
+    ctx.save(); ctx.translate(W / 2, st ? 210 : 120); ctx.rotate(-0.05)
     ctx.fillStyle = '#FFC400'; ctx.fillRect(-W, -60, W * 2, 120)
     ctx.fillStyle = '#111111'; ctx.font = `900 ${st ? 78 : 66}px ${FONTE}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('OFERTA DO DIA', 0, 4)
     ctx.restore()
-    const raio = st ? 400 : 220, cx = W / 2, cy = st ? 760 : 400
+    const raio = st ? 400 : 300, cx = W / 2, cy = st ? 760 : 500
     ctx.beginPath(); ctx.arc(cx, cy, raio + 14, 0, Math.PI * 2); ctx.fillStyle = cor; ctx.fill()
     ctx.save(); ctx.beginPath(); ctx.arc(cx, cy, raio, 0, Math.PI * 2); ctx.clip(); cobrir(ctx, d.foto, cx - raio, cy - raio, raio * 2, raio * 2); ctx.restore()
     selo(ctx, d, cx - raio * 0.78, cy - raio * 0.78, st ? 64 : 52)
-    let y = escrever(ctx, d.titulo.toUpperCase(), 60, cy + raio + (st ? 70 : 34), W - 120, st ? 110 : 66, 2, '#FFFFFF', 'center')
+    let y = escrever(ctx, d.titulo.toUpperCase(), 60, cy + raio + (st ? 70 : 40), W - 120, st ? 110 : 76, 2, '#FFFFFF', 'center')
     if (d.preco.trim()) {
-      const { tam } = caber(ctx, d.preco, W - 160, st ? 150 : 96, 1)
+      const { tam } = caber(ctx, d.preco, W - 160, st ? 150 : 110, 1)
       ctx.font = `900 ${tam}px ${FONTE}`; ctx.fillStyle = '#FFC400'; ctx.textAlign = 'center'; ctx.textBaseline = 'top'; ctx.fillText(d.preco, W / 2, y + 10); y += tam * 1.15 + 10
     } else y = escrever(ctx, d.subtitulo, 60, y + 10, W - 120, st ? 50 : 38, 2, 'rgba(255,255,255,.9)', 'center', '600')
     botao(ctx, d.chamada, W / 2, y + (st ? 40 : 16), st ? 50 : 40, cor, corTxt)
-    escrever(ctx, d.nomeLoja, 60, H - (st ? 120 : 46), W - 120, 30, 1, 'rgba(255,255,255,.75)', 'center', '700')
+    escrever(ctx, d.nomeLoja, 60, H - (st ? 120 : 56), W - 120, 30, 1, 'rgba(255,255,255,.75)', 'center', '700')
   }
 }
 
