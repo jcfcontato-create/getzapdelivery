@@ -123,6 +123,7 @@ export default function Cardapio() {
   const [enviando, setEnviando] = useState(false)
   const [zap, setZap] = useState('')
   const [produtoModal, setProdutoModal] = useState<Produto | null>(null)
+  const [produtoDetalhe, setProdutoDetalhe] = useState<Produto | null>(null)
   const [cupomCodigo, setCupomCodigo] = useState('')
   const [temCupom, setTemCupom] = useState(false)
   const [cupom, setCupom] = useState<{ codigo: string; tipo: 'percentual' | 'fixo' | 'frete_gratis'; desconto: number } | null>(null)
@@ -286,7 +287,7 @@ export default function Cardapio() {
     if (gs.length === 0) {
       // Sem adicionais: soma direto numa linha já existente daquele produto puro
       setCarrinho(c => {
-        const existente = c.find(l => l.produto.id === p.id && l.selecoes.length === 0)
+        const existente = c.find(l => l.produto.id === p.id && l.selecoes.length === 0 && !l.obs?.trim())
         if (existente) return c.map(l => l === existente ? { ...l, qtd: l.qtd + 1 } : l)
         return [...c, { id: novoId(), produto: p, qtd: 1, selecoes: [] }]
       })
@@ -323,7 +324,7 @@ export default function Cardapio() {
   }
   function mudarQtdSimples(produtoId: string, d: number) {
     setCarrinho(c => {
-      const existente = c.find(l => l.produto.id === produtoId && l.selecoes.length === 0)
+      const existente = c.find(l => l.produto.id === produtoId && l.selecoes.length === 0 && !l.obs?.trim())
       if (!existente) return c
       const n = existente.qtd + d
       if (n <= 0) return c.filter(l => l !== existente)
@@ -454,16 +455,20 @@ export default function Cardapio() {
               <div className="space-y-3">
               {produtosCategoria.map(p => {
                 const temAdicionais = gruposDoProduto(p.id).length > 0
-                const linhaSimples = carrinho.find(l => l.produto.id === p.id && l.selecoes.length === 0)
-                const qtdOutrasLinhas = carrinho.filter(l => l.produto.id === p.id && l.selecoes.length > 0).reduce((s, l) => s + l.qtd, 0)
+                const linhaSimples = carrinho.find(l => l.produto.id === p.id && l.selecoes.length === 0 && !l.obs?.trim())
+                const qtdOutrasLinhas = carrinho.filter(l => l.produto.id === p.id && l !== linhaSimples).reduce((s, l) => s + l.qtd, 0)
+                // Teste de usabilidade: tocar na foto abre os detalhes (só produto sem adicionais e com observação ligada)
+                const abreDetalhe = !temAdicionais && p.permite_observacao !== false
                 return (
                   <div key={p.id} className="flex items-center gap-3 rounded-2xl border border-neutral-200 bg-white p-3 shadow-sm">
-                    {p.foto_url && <img src={p.foto_url} alt="" className="h-20 w-20 shrink-0 rounded-xl object-cover" />}
+                    {p.foto_url && (abreDetalhe
+                      ? <button type="button" aria-label={`Ver detalhes de ${p.nome}`} onClick={() => setProdutoDetalhe(p)} className="shrink-0 rounded-xl transition active:scale-95"><img src={p.foto_url} alt="" className="h-20 w-20 rounded-xl object-cover" /></button>
+                      : <img src={p.foto_url} alt="" className="h-20 w-20 shrink-0 rounded-xl object-cover" />)}
                     <div className="min-w-0 flex-1">
                       <p className="font-bold leading-tight">{p.nome}</p>
                       {p.descricao && <p className="mt-0.5 line-clamp-2 text-sm text-neutral-600">{p.descricao}</p>}
                       <p className="mt-1 text-base font-extrabold" style={{ color: corLegivel(cor) }}>{precoAPartir(p) != null ? `A partir de ${R(precoAPartir(p)!)}` : R(p.preco)}</p>
-                      {qtdOutrasLinhas > 0 && <p className="text-xs text-neutral-500">{qtdOutrasLinhas} no carrinho com adicionais</p>}
+                      {qtdOutrasLinhas > 0 && <p className="text-xs text-neutral-500">{qtdOutrasLinhas} no carrinho com {temAdicionais ? 'adicionais' : 'observação'}</p>}
                     </div>
                     <div className="flex shrink-0 items-center gap-2">
                       {!temAdicionais && linhaSimples && linhaSimples.qtd > 0 && (<>
@@ -641,6 +646,21 @@ export default function Cardapio() {
         </main>
       )}
 
+      {produtoDetalhe && (
+        <ModalDetalhe produto={produtoDetalhe} cor={cor} podeAdicionar={podeReceberPedido} fechar={() => setProdutoDetalhe(null)}
+          adicionar={(qtd, obs) => {
+            const p = produtoDetalhe
+            setCarrinho(c => {
+              if (!obs) {
+                const existente = c.find(l => l.produto.id === p.id && l.selecoes.length === 0 && !l.obs?.trim())
+                if (existente) return c.map(l => l === existente ? { ...l, qtd: l.qtd + qtd } : l)
+              }
+              return [...c, { id: novoId(), produto: p, qtd, selecoes: [], obs }]
+            })
+            setProdutoDetalhe(null)
+            sugerirApos(p.id)
+          }} />
+      )}
       {produtoModal && (
         <ModalAdicionais
           produto={produtoModal}
@@ -708,6 +728,49 @@ export default function Cardapio() {
           Sistema desenvolvido por <a href="https://gestaoexpress.com.br/" target="_blank" rel="noopener noreferrer" className="font-semibold underline hover:text-neutral-800">Gestão Express</a>, quer um catálogo igual este clique <a href="https://getzapdelivery.com.br" target="_blank" rel="noopener noreferrer" className="font-semibold underline hover:text-neutral-800">aqui.</a>
         </p>
       </footer>
+    </div>
+  )
+}
+
+// Janela de detalhes do produto (foto grande, descrição, preço, quantidade e observações)
+function ModalDetalhe({ produto, cor, podeAdicionar, fechar, adicionar }: {
+  produto: Produto; cor: string; podeAdicionar: boolean; fechar: () => void; adicionar: (qtd: number, obs: string) => void
+}) {
+  const [qtd, setQtd] = useState(1)
+  const [obs, setObs] = useState('')
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-3 py-6" role="dialog" aria-modal="true" aria-label={produto.nome} onClick={fechar}>
+      <div className="max-h-[85vh] max-h-[85dvh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white shadow-2xl" onClick={e => e.stopPropagation()}>
+        <div className="relative">
+          {produto.foto_url && <img src={produto.foto_url} alt={produto.nome} className="max-h-[45vh] w-full rounded-t-2xl object-cover" />}
+          <button type="button" aria-label="Fechar" onClick={fechar} className="absolute right-3 top-3 flex h-9 w-9 items-center justify-center rounded-full bg-white/90 text-2xl leading-none shadow">×</button>
+        </div>
+        <div className="space-y-3 p-4">
+          <div>
+            <h3 className="text-xl font-extrabold leading-tight">{produto.nome}</h3>
+            {produto.descricao && <p className="mt-1 whitespace-pre-line text-neutral-700">{produto.descricao}</p>}
+            <p className="mt-2 text-xl font-extrabold" style={{ color: corLegivel(cor) }}>{R(produto.preco)}</p>
+          </div>
+          <label className="block">
+            <span className="font-semibold">Observações:</span>
+            <textarea className="mt-1 w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm" rows={2} maxLength={200}
+              placeholder="Ex.: sem cebola, sem tomate, alergia a amendoim" value={obs} onChange={e => setObs(e.target.value)} />
+          </label>
+          <div className="flex items-center justify-between">
+            <span className="font-semibold">Quantidade</span>
+            <span className="flex items-center gap-3">
+              <button type="button" aria-label="Diminuir quantidade" onClick={() => setQtd(q => Math.max(1, q - 1))} className="h-9 w-9 rounded-full border border-neutral-400">-</button>
+              <span className="w-6 text-center text-lg font-bold">{qtd}</span>
+              <button type="button" aria-label="Aumentar quantidade" onClick={() => setQtd(q => q + 1)} className="h-9 w-9 rounded-full border border-neutral-400">+</button>
+            </span>
+          </div>
+        </div>
+        <div className="sticky bottom-0 bg-white px-4 pb-4 pt-2 shadow-[0_-8px_12px_-8px_rgba(0,0,0,.15)]">
+          <button onClick={() => adicionar(qtd, obs.trim())} disabled={!podeAdicionar} className="w-full rounded-lg py-3 font-bold disabled:opacity-40" style={{ background: cor, color: texto(cor) }}>
+            {podeAdicionar ? `Adicionar ao carrinho - ${R(produto.preco * qtd)}` : 'Loja fechada no momento'}
+          </button>
+        </div>
+      </div>
     </div>
   )
 }
