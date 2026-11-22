@@ -8,7 +8,7 @@ import { otimizarFoto, tamanhoLegivel, TAM_MAX_ORIGINAL } from '../lib/imagem'
 
 export type Loja = { id: string; slug: string; nome: string; whatsapp: string; aberta: boolean; aceita_retirada: boolean; endereco: string | null; impressora: string | null; logo_url: string | null; banner_celular_url: string | null; banner_pc_url: string | null; cidade: string | null; uf: string | null; cep: string | null; tipo_cozinha: string | null; descricao_seo: string | null; email: string | null; cpf_cnpj: string | null; imprime_via_cozinha: boolean; vias_impressao: number; fonte_impressao?: number; plataforma_ativa: boolean; modulo_precificacao?: boolean; modulo_divulgacao?: boolean; modulo_whatsapp?: boolean; aviso_whatsapp_status?: boolean; cor: string }
 type ItemAdEscolhido = { nome: string; qtd: number; preco_unit: number }
-type Item = { id: string; nome: string; qtd: number; preco_unit: number; itens_pedido_adicionais: ItemAdEscolhido[] }
+type Item = { id: string; nome: string; qtd: number; preco_unit: number; observacao?: string | null; itens_pedido_adicionais: ItemAdEscolhido[] }
 export type Pedido = { id: string; numero: number; status: string; cliente_nome: string; cliente_telefone: string; tipo: string; mesa?: number | null; cidade?: string | null; bairro: string | null; endereco: string | null; pagamento: string; troco_para: string | null; observacao: string | null; subtotal: number; taxa_entrega: number; desconto: number; cupom_codigo: string | null; total: number; criado_em: string; itens_pedido: Item[] }
 type Cat = { id: string; nome: string; ordem: number }
 type Prod = { id: string; categoria_id: string; nome: string; descricao: string | null; preco: number; ativo: boolean; foto_url: string | null; dias_semana: number[] | null }
@@ -76,7 +76,8 @@ const esc = (s: string) => s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;
 // Imprime o pedido em formato de cupom (papel de 80 mm), sem alterar a tela do painel
 function imprimirPedido(p: Pedido, loja: Loja, titulo?: string, semPreco?: boolean) {
   const linhas = p.itens_pedido.map(i => `<tr><td>${i.qtd}x ${esc(i.nome)}</td><td class="d">${semPreco ? '' : R(i.qtd * i.preco_unit)}</td></tr>` +
-    (i.itens_pedido_adicionais ?? []).map(a => `<tr><td class="ad">+ ${a.qtd}x ${esc(a.nome)}</td><td></td></tr>`).join('')).join('')
+    (i.itens_pedido_adicionais ?? []).map(a => `<tr><td class="ad">+ ${a.qtd}x ${esc(a.nome)}</td><td></td></tr>`).join('') +
+    (i.observacao ? `<tr><td class="ad"><b>OBS: ${esc(i.observacao)}</b></td><td></td></tr>` : '')).join('')
   const data = new Date(p.criado_em).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })
   const totais = semPreco ? '' : `<table><tr><td>Subtotal</td><td class="d">${R(p.subtotal)}</td></tr>${p.tipo === 'entrega' ? `<tr><td>Entrega</td><td class="d">${R(p.taxa_entrega)}</td></tr>` : ''}${p.desconto > 0 ? `<tr><td>Cupom${p.cupom_codigo ? ' ' + esc(p.cupom_codigo) : ''}</td><td class="d">-${R(p.desconto)}</td></tr>` : ''}<tr class="b"><td>TOTAL</td><td class="d">${R(p.total)}</td></tr></table><hr>
 <p>Pagamento: ${PAG[p.pagamento] ?? esc(p.pagamento)}${p.troco_para ? ` (troco para ${esc(p.troco_para)})` : ''}</p>`
@@ -240,7 +241,7 @@ function Area() {
           setVersao(v => v + 1)
           if (somRef.current) tocar()
           if (imprimirRef.current) {
-            const { data: cheios } = await supabase.from('pedidos').select('*, itens_pedido(nome,qtd,preco_unit,itens_pedido_adicionais(nome,qtd,preco_unit))').in('id', novos.map((p: any) => p.id))
+            const { data: cheios } = await supabase.from('pedidos').select('*, itens_pedido(nome,qtd,preco_unit,observacao,itens_pedido_adicionais(nome,qtd,preco_unit))').in('id', novos.map((p: any) => p.id))
             let atraso = 0
             ;(cheios as Pedido[] | null)?.forEach(p => { atraso += imprimirConformeConfig(p, loja, atraso) })
           }
@@ -360,7 +361,7 @@ function Pedidos({ loja, versao, impAuto, alternarImp, modo = 'geral', buscaMesa
   const [erro, setErro] = useState('')
   const [produtos, setProdutos] = useState<{ id: string; nome: string; preco: number }[]>([])
   const carregar = useCallback(async () => {
-    const { data, error } = await supabase.from('pedidos').select('*, itens_pedido(id,nome,qtd,preco_unit,itens_pedido_adicionais(nome,qtd,preco_unit))').eq('loja_id', loja.id).order('criado_em', { ascending: false }).limit(60)
+    const { data, error } = await supabase.from('pedidos').select('*, itens_pedido(id,nome,qtd,preco_unit,observacao,itens_pedido_adicionais(nome,qtd,preco_unit))').eq('loja_id', loja.id).order('criado_em', { ascending: false }).limit(60)
     if (error) setErro(error.message); else { setErro(''); setLista(data as Pedido[]) }
   }, [loja.id])
   useEffect(() => { carregar(); const t = setInterval(carregar, 15000); return () => clearInterval(t) }, [carregar, versao])
@@ -454,6 +455,7 @@ function Pedidos({ loja, versao, impAuto, alternarImp, modo = 'geral', buscaMesa
                         {i.itens_pedido_adicionais.map((a, j) => <li key={j}>+ {a.qtd}x {a.nome}</li>)}
                       </ul>
                     )}
+                    {i.observacao && <span className="mt-0.5 block rounded bg-yellow-100 px-2 py-0.5 text-sm font-semibold text-yellow-900">Obs: {i.observacao}</span>}
                   </span>
                   {editavel && <button type="button" aria-label={`Remover ${i.nome}`} className="shrink-0 text-sm text-red-700 underline" onClick={() => removerItem(p, i)}>remover</button>}
                 </li>
@@ -2039,7 +2041,7 @@ function AbaRelatorios({ loja }: { loja: Loja }) {
     ;(async () => {
       setCarga(true); setErro('')
       const [i, f] = intervalo()
-      const { data, error } = await supabase.from('pedidos').select('*, itens_pedido(nome,qtd,preco_unit,itens_pedido_adicionais(nome,qtd,preco_unit))').eq('loja_id', loja.id).gte('criado_em', i.toISOString()).lt('criado_em', f.toISOString()).order('criado_em')
+      const { data, error } = await supabase.from('pedidos').select('*, itens_pedido(nome,qtd,preco_unit,observacao,itens_pedido_adicionais(nome,qtd,preco_unit))').eq('loja_id', loja.id).gte('criado_em', i.toISOString()).lt('criado_em', f.toISOString()).order('criado_em')
       if (error) setErro(error.message); else setPedidos((data as Pedido[]) ?? [])
       setCarga(false)
     })()

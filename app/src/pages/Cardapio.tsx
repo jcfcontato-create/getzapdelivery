@@ -13,7 +13,7 @@ type Grupo = { id: string; nome: string; tipo: 'unica' | 'multipla'; obrigatorio
 type ItemAd = { id: string; grupo_id: string; nome: string; preco: number; permite_quantidade: boolean; quantidade_maxima: number; dias_semana?: number[] | null }
 type FormaPagamento = { id: string; nome: string; aceita_troco: boolean }
 type Selecao = { item_id: string; nome: string; preco: number; qtd: number }
-type LinhaCarrinho = { id: string; produto: Produto; qtd: number; selecoes: Selecao[] }
+type LinhaCarrinho = { id: string; produto: Produto; qtd: number; selecoes: Selecao[]; obs?: string }
 type Form = { nome: string; telefone: string; tipo: string; mesa: string; cidade: string; bairro: string; rua: string; numero: string; complemento: string; pagamento: string; troco: string; obs: string }
 
 const R = (n: number) => n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
@@ -340,7 +340,7 @@ export default function Cardapio() {
     const { data, error } = await supabase.rpc('criar_pedido', {
       p_slug: slug,
       p_cliente: { nome: f.nome, telefone: f.telefone, tipo: f.tipo, mesa: f.tipo === 'mesa' ? f.mesa : null, cidade: f.tipo === 'entrega' ? cidadeEntrega : null, bairro: f.bairro, rua: f.rua, numero: f.numero, complemento: f.complemento, endereco: enderecoCompleto(f), pagamento: f.pagamento, troco: f.troco, obs: f.obs },
-      p_itens: carrinho.map(l => ({ produto_id: l.produto.id, qtd: l.qtd, adicionais: l.selecoes.map(s => ({ item_id: s.item_id, qtd: s.qtd })) })),
+      p_itens: carrinho.map(l => ({ produto_id: l.produto.id, qtd: l.qtd, obs: (l.obs ?? '').trim(), adicionais: l.selecoes.map(s => ({ item_id: s.item_id, qtd: s.qtd })) })),
       p_cupom_codigo: cupom?.codigo ?? null,
     })
     setEnviando(false)
@@ -357,6 +357,7 @@ export default function Cardapio() {
       ...carrinho.flatMap(l => [
         `${l.qtd}x ${l.produto.nome} - ${R(linhaTotal(l))}`,
         ...l.selecoes.map(s => `   + ${s.qtd}x ${s.nome}`),
+        ...(l.obs?.trim() ? [`   _Obs: ${l.obs.trim()}_`] : []),
       ]), '',
       `Subtotal: ${R(data.subtotal)}`,
       ...(f.tipo === 'entrega' ? [`Entrega (${f.bairro} - ${cidadeEntrega}): ${R(data.taxa)}`] : []),
@@ -517,6 +518,11 @@ export default function Cardapio() {
                 </div>
               </div>
               {l.selecoes.map((s, k) => <p key={k} className="pl-9 text-sm text-neutral-600">+ {s.qtd}x {s.nome}{s.preco > 0 && ` (${R(s.preco)})`}</p>)}
+              <label className="mt-1 block pl-9">
+                <span className="text-xs font-semibold text-neutral-700">Observações:</span>
+                <input className="mt-0.5 w-full rounded-lg border border-neutral-300 px-2 py-1 text-sm" maxLength={200} placeholder="Ex.: sem cebola, alergia a amendoim"
+                  value={l.obs ?? ''} onChange={e => setCarrinho(c => c.map(x => (x.id === l.id ? { ...x, obs: e.target.value } : x)))} />
+              </label>
             </div>
           ))}
           <label className="block">
@@ -642,8 +648,8 @@ export default function Cardapio() {
           itensPorGrupo={g => itensAd.filter(i => i.grupo_id === g)}
           cor={cor}
           fechar={() => setProdutoModal(null)}
-          adicionar={(qtdProduto, selecoes) => {
-            setCarrinho(c => [...c, { id: novoId(), produto: produtoModal, qtd: qtdProduto, selecoes }])
+          adicionar={(qtdProduto, selecoes, obs) => {
+            setCarrinho(c => [...c, { id: novoId(), produto: produtoModal, qtd: qtdProduto, selecoes, obs }])
             setProdutoModal(null)
             sugerirApos(produtoModal.id)
           }}
@@ -708,9 +714,10 @@ export default function Cardapio() {
 
 function ModalAdicionais({ produto, grupos, itensPorGrupo, cor, fechar, adicionar }: {
   produto: Produto; grupos: Grupo[]; itensPorGrupo: (grupoId: string) => ItemAd[]; cor: string
-  fechar: () => void; adicionar: (qtd: number, selecoes: Selecao[]) => void
+  fechar: () => void; adicionar: (qtd: number, selecoes: Selecao[], obs: string) => void
 }) {
   const [qtdProduto, setQtdProduto] = useState(1)
+  const [obs, setObs] = useState('')
   // escolhas[grupoId][itemId] = quantidade escolhida
   const [escolhas, setEscolhas] = useState<Record<string, Record<string, number>>>({})
 
@@ -759,7 +766,7 @@ function ModalAdicionais({ produto, grupos, itensPorGrupo, cor, fechar, adiciona
         if (item) selecoes.push({ item_id: item.id, nome: item.nome, preco: item.preco, qtd })
       }
     }
-    adicionar(qtdProduto, selecoes)
+    adicionar(qtdProduto, selecoes, obs.trim())
   }
 
   const totalAdicionais = Object.entries(escolhas).flatMap(([gId, itens]) => Object.entries(itens).map(([itemId, qtd]) => {
@@ -840,6 +847,12 @@ function ModalAdicionais({ produto, grupos, itensPorGrupo, cor, fechar, adiciona
             <button type="button" aria-label="Aumentar quantidade" onClick={() => setQtdProduto(q => q + 1)} className="h-8 w-8 rounded-full border border-neutral-400">+</button>
           </span>
         </div>
+
+        <label className="mt-3 block">
+          <span className="font-semibold">Observações:</span>
+          <textarea className="mt-1 w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm" rows={2} maxLength={200}
+            placeholder="Ex.: sem cebola, sem tomate, alergia a amendoim" value={obs} onChange={e => setObs(e.target.value)} />
+        </label>
 
         {!podeAdicionar && <p className="mt-3 text-sm text-red-700">Escolha uma opção em: {faltamObrigatorios.map(g => g.nome).join(', ')}.</p>}
 

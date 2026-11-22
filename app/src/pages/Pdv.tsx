@@ -273,7 +273,7 @@ function Venda({ loja, carrinho, total, formas, zonas, mesas, mudarQtd, limpar, 
     })
     if (error) { setEnviando(false); return setErro(error.message) }
     if (imprimir) {
-      const { data: p } = await supabase.from('pedidos').select('*, itens_pedido(id,nome,qtd,preco_unit,itens_pedido_adicionais(nome,qtd,preco_unit))').eq('id', data.id).single()
+      const { data: p } = await supabase.from('pedidos').select('*, itens_pedido(id,nome,qtd,preco_unit,observacao,itens_pedido_adicionais(nome,qtd,preco_unit))').eq('id', data.id).single()
       if (p) imprimirConformeConfig(p as Pedido, loja)
     }
     setEnviando(false)
