@@ -27,3 +27,5 @@ Em nov/2026 uma versão nova da CLI do Supabase (o workflow usa `version: latest
 local por padrão. Correção: usar `supabase db push --linked` no deploy.yml.
 Na mesma versão, `supabase functions deploy` passou a pedir confirmação ("Confirmation required") e falhava
 sem terminal. Correção: acrescentar `--yes` em cada `supabase functions deploy`.
+Em nov/2026 o `supabase db push` também passou a pedir confirmação: usar `supabase db push --linked --yes`
+(a CLI avisa que `--linked` vai virar `--remote` na v4; trocar quando a v4 sair).
