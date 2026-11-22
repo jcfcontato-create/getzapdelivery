@@ -6,7 +6,7 @@ type Loja = { id: string; nome: string; whatsapp: string; aberta: boolean; aceit
 type Rede = 'instagram' | 'facebook' | 'tiktok' | 'youtube' | 'twitter' | 'whatsapp' | 'site'
 type RedeSocial = { rede: Rede; url: string }
 type Categoria = { id: string; nome: string }
-type Produto = { id: string; categoria_id: string; nome: string; descricao: string | null; preco: number; foto_url: string | null; dias_semana: number[] | null }
+type Produto = { id: string; categoria_id: string; nome: string; descricao: string | null; preco: number; foto_url: string | null; dias_semana: number[] | null; permite_observacao?: boolean }
 type Zona = { cidade: string; bairro: string; taxa: number }
 type Horario = { dia_semana: number; abre: string | null; fecha: string | null; fechado: boolean }
 type Grupo = { id: string; nome: string; tipo: 'unica' | 'multipla'; obrigatorio: boolean; maximo: number | null }
@@ -165,7 +165,7 @@ export default function Cardapio() {
       supabase.from('mesas').select('numero').eq('loja_id', l.id).order('numero').then(({ data }) => setMesas((data ?? []).map((x: any) => x.numero)))
       const [c, p, z, fp, rs, g, i, h] = await Promise.all([
         supabase.from('categorias').select('id,nome').eq('loja_id', l.id).order('ordem'),
-        supabase.from('produtos').select('id,categoria_id,nome,descricao,preco,foto_url,dias_semana').eq('loja_id', l.id).eq('ativo', true).order('ordem'),
+        supabase.from('produtos').select('id,categoria_id,nome,descricao,preco,foto_url,dias_semana,permite_observacao').eq('loja_id', l.id).eq('ativo', true).order('ordem'),
         supabase.from('zonas_entrega').select('cidade,bairro,taxa').eq('loja_id', l.id).order('cidade').order('bairro'),
         supabase.from('formas_pagamento').select('id,nome,aceita_troco').eq('loja_id', l.id).order('ordem'),
         supabase.from('redes_sociais').select('rede,url').eq('loja_id', l.id).order('ordem'),
@@ -340,7 +340,7 @@ export default function Cardapio() {
     const { data, error } = await supabase.rpc('criar_pedido', {
       p_slug: slug,
       p_cliente: { nome: f.nome, telefone: f.telefone, tipo: f.tipo, mesa: f.tipo === 'mesa' ? f.mesa : null, cidade: f.tipo === 'entrega' ? cidadeEntrega : null, bairro: f.bairro, rua: f.rua, numero: f.numero, complemento: f.complemento, endereco: enderecoCompleto(f), pagamento: f.pagamento, troco: f.troco, obs: f.obs },
-      p_itens: carrinho.map(l => ({ produto_id: l.produto.id, qtd: l.qtd, obs: (l.obs ?? '').trim(), adicionais: l.selecoes.map(s => ({ item_id: s.item_id, qtd: s.qtd })) })),
+      p_itens: carrinho.map(l => ({ produto_id: l.produto.id, qtd: l.qtd, obs: l.produto.permite_observacao !== false ? (l.obs ?? '').trim() : '', adicionais: l.selecoes.map(s => ({ item_id: s.item_id, qtd: s.qtd })) })),
       p_cupom_codigo: cupom?.codigo ?? null,
     })
     setEnviando(false)
@@ -518,11 +518,11 @@ export default function Cardapio() {
                 </div>
               </div>
               {l.selecoes.map((s, k) => <p key={k} className="pl-9 text-sm text-neutral-600">+ {s.qtd}x {s.nome}{s.preco > 0 && ` (${R(s.preco)})`}</p>)}
-              <label className="mt-1 block pl-9">
+              {l.produto.permite_observacao !== false && <label className="mt-1 block pl-9">
                 <span className="text-xs font-semibold text-neutral-700">Observações:</span>
                 <input className="mt-0.5 w-full rounded-lg border border-neutral-300 px-2 py-1 text-sm" maxLength={200} placeholder="Ex.: sem cebola, alergia a amendoim"
                   value={l.obs ?? ''} onChange={e => setCarrinho(c => c.map(x => (x.id === l.id ? { ...x, obs: e.target.value } : x)))} />
-              </label>
+              </label>}
             </div>
           ))}
           <label className="block">
@@ -848,11 +848,11 @@ function ModalAdicionais({ produto, grupos, itensPorGrupo, cor, fechar, adiciona
           </span>
         </div>
 
-        <label className="mt-3 block">
+        {produto.permite_observacao !== false && <label className="mt-3 block">
           <span className="font-semibold">Observações:</span>
           <textarea className="mt-1 w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm" rows={2} maxLength={200}
             placeholder="Ex.: sem cebola, sem tomate, alergia a amendoim" value={obs} onChange={e => setObs(e.target.value)} />
-        </label>
+        </label>}
 
         {!podeAdicionar && <p className="mt-3 text-sm text-red-700">Escolha uma opção em: {faltamObrigatorios.map(g => g.nome).join(', ')}.</p>}
 
