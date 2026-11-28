@@ -166,7 +166,7 @@ export default function Cardapio() {
       supabase.from('mesas').select('numero').eq('loja_id', l.id).order('numero').then(({ data }) => setMesas((data ?? []).map((x: any) => x.numero)))
       const [c, p, z, fp, rs, g, i, h] = await Promise.all([
         supabase.from('categorias').select('id,nome').eq('loja_id', l.id).order('ordem'),
-        supabase.from('produtos').select('id,categoria_id,nome,descricao,preco,foto_url,dias_semana,permite_observacao').eq('loja_id', l.id).eq('ativo', true).order('ordem'),
+        supabase.from('produtos').select('id,categoria_id,nome,descricao,preco,foto_url,dias_semana,permite_observacao').eq('loja_id', l.id).eq('ativo', true).eq('vendido_por_kg', false).order('ordem'),
         supabase.from('zonas_entrega').select('cidade,bairro,taxa').eq('loja_id', l.id).order('cidade').order('bairro'),
         supabase.from('formas_pagamento').select('id,nome,aceita_troco').eq('loja_id', l.id).order('ordem'),
         supabase.from('redes_sociais').select('rede,url').eq('loja_id', l.id).order('ordem'),

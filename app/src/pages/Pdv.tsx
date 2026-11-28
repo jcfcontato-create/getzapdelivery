@@ -6,13 +6,13 @@ import { supabase } from '../lib/supabase'
 import { Login, imprimirConformeConfig, type Loja, type Pedido } from './Painel'
 
 type Cat = { id: string; nome: string }
-type Prod = { id: string; categoria_id: string; nome: string; preco: number; ativo: boolean; foto_url: string | null }
+type Prod = { id: string; categoria_id: string; nome: string; preco: number; ativo: boolean; foto_url: string | null; vendido_por_kg?: boolean }
 type Grupo = { id: string; nome: string; tipo: 'unica' | 'multipla'; obrigatorio: boolean; maximo: number | null }
 type ItemAd = { id: string; grupo_id: string; nome: string; preco: number; permite_quantidade: boolean; quantidade_maxima: number; ativo: boolean }
 type Forma = { nome: string; aceita_troco: boolean }
 type Zona = { cidade: string | null; bairro: string; taxa: number }
 type Escolha = { item_id: string; nome: string; preco: number; qtd: number }
-type Linha = { chave: string; produto: Prod; qtd: number; adicionais: Escolha[] }
+type Linha = { chave: string; produto: Prod; qtd: number; adicionais: Escolha[]; peso?: number }
 type Tipo = 'balcao' | 'retirada' | 'entrega' | 'mesa'
 
 const R = (n: number) => Number(n).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
@@ -26,7 +26,10 @@ function mascaraTelefone(v: string) {
   if (d.length <= 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`
   return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`
 }
-const precoLinha = (l: Linha) => (Number(l.produto.preco) + l.adicionais.reduce((s, a) => s + a.preco * a.qtd, 0)) * l.qtd
+// Vendido por kg: preço do kg × peso (arredondado como no banco)
+const precoBase = (l: Linha) => (l.peso ? Math.round(Number(l.produto.preco) * l.peso * 100) / 100 : Number(l.produto.preco))
+const precoLinha = (l: Linha) => (precoBase(l) + l.adicionais.reduce((s, a) => s + a.preco * a.qtd, 0)) * l.qtd
+const kg = (n: number) => n.toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })
 const ler = (k: string, padrao: string) => { try { return localStorage.getItem(k) ?? padrao } catch { return padrao } }
 const gravar = (k: string, v: string) => { try { localStorage.setItem(k, v) } catch { /* sem armazenamento */ } }
 
@@ -58,6 +61,7 @@ function Caixa() {
   const [busca, setBusca] = useState('')
   const [carrinho, setCarrinho] = useState<Linha[]>([])
   const [escolhendo, setEscolhendo] = useState<Prod | null>(null)
+  const [pesando, setPesando] = useState<Prod | null>(null)
   const [verVenda, setVerVenda] = useState(false) // celular: painel da venda aberto
   const [aviso, setAviso] = useState('')
   const buscaRef = useRef<HTMLInputElement>(null)
@@ -71,7 +75,7 @@ function Caixa() {
       setLoja(l)
       const [c, p, g, i, lg, f, z, m] = await Promise.all([
         supabase.from('categorias').select('id,nome').eq('loja_id', l.id).order('ordem'),
-        supabase.from('produtos').select('id,categoria_id,nome,preco,ativo,foto_url').eq('loja_id', l.id).order('ordem').order('nome'),
+        supabase.from('produtos').select('id,categoria_id,nome,preco,ativo,foto_url,vendido_por_kg').eq('loja_id', l.id).order('ordem').order('nome'),
         supabase.from('grupos_adicionais').select('id,nome,tipo,obrigatorio,maximo').eq('loja_id', l.id).order('ordem'),
         supabase.from('itens_adicionais').select('id,grupo_id,nome,preco,permite_quantidade,quantidade_maxima,ativo,grupos_adicionais!inner(loja_id)').eq('grupos_adicionais.loja_id', l.id).eq('ativo', true).order('preco').order('ordem'),
         supabase.from('produto_grupos_adicionais').select('produto_id,grupo_id,produtos!inner(loja_id)').eq('produtos.loja_id', l.id),
@@ -96,6 +100,7 @@ function Caixa() {
   const qtdItens = carrinho.reduce((s, l) => s + l.qtd, 0)
 
   function adicionar(p: Prod) {
+    if (p.vendido_por_kg) { setPesando(p); return }
     if ((ligacoes[p.id] ?? []).some(g => itensAd.some(i => i.grupo_id === g))) { setEscolhendo(p); return }
     colocar(p, [], 1)
   }
@@ -107,6 +112,8 @@ function Caixa() {
     })
   }
   const mudarQtd = (chave: string, d: number) => setCarrinho(c => c.flatMap(l => (l.chave !== chave ? [l] : l.qtd + d <= 0 ? [] : [{ ...l, qtd: l.qtd + d }])))
+  // Cada pesagem é uma linha própria (dois pratos de pesos diferentes não se somam)
+  const colocarPesado = (p: Prod, peso: number) => setCarrinho(c => [...c, { chave: `${p.id}|kg|${Date.now()}`, produto: p, qtd: 1, adicionais: [], peso }])
   const mostrarAviso = useCallback((m: string) => { setAviso(m); window.setTimeout(() => setAviso(''), 3500) }, [])
 
   if (erroCarga && !loja) return <p className="p-8 text-red-700">{erroCarga}</p>
@@ -137,7 +144,7 @@ function Caixa() {
               <button key={p.id} onClick={() => adicionar(p)} className="flex flex-col overflow-hidden rounded-xl border border-neutral-200 bg-white text-left shadow-sm active:scale-[.98]">
                 {p.foto_url ? <img src={p.foto_url} alt="" loading="lazy" className="h-24 w-full object-cover" /> : <div className="flex h-24 items-center justify-center bg-neutral-100 text-3xl">🍽️</div>}
                 <span className="line-clamp-2 px-2 pt-1 text-sm font-semibold">{p.nome}</span>
-                <span className="px-2 pb-2 font-bold text-[#1A7F37]">{R(p.preco)}{!p.ativo && <span className="ml-1 text-xs font-normal text-neutral-500">(oculto)</span>}</span>
+                <span className="px-2 pb-2 font-bold text-[#1A7F37]">{R(p.preco)}{p.vendido_por_kg && <span className="text-sm">/kg</span>}{!p.ativo && <span className="ml-1 text-xs font-normal text-neutral-500">(oculto)</span>}</span>
               </button>
             ))}
             {lista.length === 0 && <p className="col-span-full p-6 text-center text-neutral-600">Nenhum produto encontrado.</p>}
@@ -156,8 +163,34 @@ function Caixa() {
           <span>Ver venda ({qtdItens})</span><span>{R(total)}</span>
         </button>
       )}
+      {pesando && <InformarPeso produto={pesando} fechar={() => setPesando(null)} confirmar={peso => { colocarPesado(pesando, peso); setPesando(null); buscaRef.current?.focus() }} />}
       {escolhendo && <EscolherAdicionais produto={escolhendo} grupos={grupos.filter(g => (ligacoes[escolhendo.id] ?? []).includes(g.id))} itens={itensAd}
         fechar={() => setEscolhendo(null)} confirmar={(ads, q) => { colocar(escolhendo, ads, q); setEscolhendo(null); buscaRef.current?.focus() }} />}
+    </div>
+  )
+}
+
+// Janela para digitar o peso de um produto vendido por quilo (ex.: self service)
+function InformarPeso({ produto, fechar, confirmar }: { produto: Prod; fechar: () => void; confirmar: (peso: number) => void }) {
+  const [txt, setTxt] = useState('')
+  // Aceita "0,546" (kg) ou "546" (gramas): acima de 50 entende como gramas
+  const bruto = NUM(txt)
+  const peso = bruto > 50 ? bruto / 1000 : bruto
+  const valido = peso > 0 && peso <= 50
+  const valor = valido ? Math.round(produto.preco * peso * 100) / 100 : 0
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-3" onClick={fechar}>
+      <form className="w-full max-w-sm space-y-3 rounded-2xl bg-white p-5" onClick={e => e.stopPropagation()} onSubmit={e => { e.preventDefault(); if (valido) confirmar(Math.round(peso * 1000) / 1000) }}>
+        <div className="flex items-start justify-between gap-2">
+          <div><p className="text-lg font-bold">{produto.nome}</p><p className="text-sm text-neutral-600">{R(produto.preco)} o kg</p></div>
+          <button type="button" className="text-2xl" aria-label="Fechar" onClick={fechar}>×</button>
+        </div>
+        <label className="block"><span className="mb-1 block text-sm font-bold">Peso</span>
+          <input autoFocus className={`${campo} text-2xl`} inputMode="decimal" placeholder="Ex.: 0,546 ou 546 g" value={txt} onChange={e => setTxt(e.target.value)} /></label>
+        <p className="text-sm text-neutral-600">{valido ? <>{kg(peso)} kg × {R(produto.preco)} = </> : 'Digite o peso em kg (0,546) ou em gramas (546).'}</p>
+        <p className="text-3xl font-extrabold text-[#1A7F37]">{R(valor)}</p>
+        <button disabled={!valido} className="w-full rounded-lg bg-[#1A7F37] px-4 py-3 text-lg font-bold text-white disabled:opacity-40">Adicionar</button>
+      </form>
     </div>
   )
 }
@@ -269,7 +302,7 @@ function Venda({ loja, carrinho, total, formas, zonas, mesas, mudarQtd, limpar, 
     const { data, error } = await supabase.rpc('criar_pedido_pdv', {
       p_loja: loja.id,
       p_dados: { tipo, nome, telefone: tel, mesa, cidade: tipo === 'entrega' ? cidadeSel : null, bairro, endereco, pagamento, troco: troco !== null ? recebido : '', desconto: desc, obs },
-      p_itens: carrinho.map(l => ({ produto_id: l.produto.id, qtd: l.qtd, adicionais: l.adicionais.map(a => ({ item_id: a.item_id, qtd: a.qtd })) })),
+      p_itens: carrinho.map(l => ({ produto_id: l.produto.id, qtd: l.qtd, peso: l.peso ?? null, adicionais: l.adicionais.map(a => ({ item_id: a.item_id, qtd: a.qtd })) })),
     })
     if (error) { setEnviando(false); return setErro(error.message) }
     if (imprimir) {
@@ -297,12 +330,14 @@ function Venda({ loja, carrinho, total, formas, zonas, mesas, mudarQtd, limpar, 
               <li key={l.chave} className="flex items-start justify-between gap-2 py-2">
                 <div className="min-w-0">
                   <p className="font-semibold">{l.produto.nome}</p>
+                  {l.peso && <p className="text-xs text-neutral-600">{kg(l.peso)} kg × {R(l.produto.preco)}/kg</p>}
                   {l.adicionais.map(a => <p key={a.item_id} className="text-xs text-neutral-600">+ {a.qtd}x {a.nome}</p>)}
                 </div>
                 <div className="flex shrink-0 items-center gap-1">
+                  {l.peso ? <button type="button" className="rounded-lg border px-2 py-1 text-xs text-red-700" onClick={() => mudarQtd(l.chave, -1)}>Remover</button> : <>
                   <button type="button" className="h-8 w-8 rounded-lg border text-lg" aria-label="Menos" onClick={() => mudarQtd(l.chave, -1)}>−</button>
                   <b className="w-6 text-center">{l.qtd}</b>
-                  <button type="button" className="h-8 w-8 rounded-lg border text-lg" aria-label="Mais" onClick={() => mudarQtd(l.chave, 1)}>+</button>
+                  <button type="button" className="h-8 w-8 rounded-lg border text-lg" aria-label="Mais" onClick={() => mudarQtd(l.chave, 1)}>+</button></>}
                   <span className="w-20 text-right text-sm font-semibold">{R(precoLinha(l))}</span>
                 </div>
               </li>

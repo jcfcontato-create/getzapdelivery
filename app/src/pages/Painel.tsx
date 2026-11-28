@@ -11,7 +11,7 @@ type ItemAdEscolhido = { nome: string; qtd: number; preco_unit: number }
 type Item = { id: string; nome: string; qtd: number; preco_unit: number; observacao?: string | null; itens_pedido_adicionais: ItemAdEscolhido[] }
 export type Pedido = { id: string; numero: number; status: string; cliente_nome: string; cliente_telefone: string; tipo: string; mesa?: number | null; cidade?: string | null; bairro: string | null; endereco: string | null; pagamento: string; troco_para: string | null; observacao: string | null; subtotal: number; taxa_entrega: number; desconto: number; cupom_codigo: string | null; total: number; criado_em: string; itens_pedido: Item[] }
 type Cat = { id: string; nome: string; ordem: number }
-type Prod = { id: string; categoria_id: string; nome: string; descricao: string | null; preco: number; ativo: boolean; permite_observacao?: boolean; foto_url: string | null; dias_semana: number[] | null }
+type Prod = { id: string; categoria_id: string; nome: string; descricao: string | null; preco: number; ativo: boolean; permite_observacao?: boolean; vendido_por_kg?: boolean; foto_url: string | null; dias_semana: number[] | null }
 type Zona = { id: string; cidade: string; bairro: string; taxa: number }
 type Grupo = { id: string; nome: string; tipo: 'unica' | 'multipla'; obrigatorio: boolean; maximo: number | null }
 type ItemAd = { id: string; grupo_id: string; nome: string; preco: number; permite_quantidade: boolean; quantidade_maxima: number; ativo: boolean; dias_semana: number[] | null }
@@ -592,8 +592,8 @@ function AcrescentarItem({ produtos, adicionar }: { produtos: { id: string; nome
 const TAM_MAX_FOTO = 5 * 1024 * 1024
 
 function FormProduto({ loja, cats, grupos, gruposIniciais, sugestoesIniciais, diasHabilitados, p, categoriaInicial, feito, erro }: { loja: Loja; cats: Cat[]; grupos: Grupo[]; gruposIniciais?: string[]; sugestoesIniciais?: string[]; diasHabilitados: number[]; p?: Prod; categoriaInicial?: string; feito: () => void; erro: (m: string) => void }) {
-  const vazio = { nome: '', descricao: '', preco: '', categoria_id: categoriaInicial ?? cats[0]?.id ?? '', ativo: true, permite_observacao: true, foto_url: null as string | null }
-  const [f, setF] = useState(p ? { nome: p.nome, descricao: p.descricao ?? '', preco: String(p.preco).replace('.', ','), categoria_id: p.categoria_id, ativo: p.ativo, permite_observacao: p.permite_observacao !== false, foto_url: p.foto_url } : vazio)
+  const vazio = { nome: '', descricao: '', preco: '', categoria_id: categoriaInicial ?? cats[0]?.id ?? '', ativo: true, permite_observacao: true, vendido_por_kg: false, foto_url: null as string | null }
+  const [f, setF] = useState(p ? { nome: p.nome, descricao: p.descricao ?? '', preco: String(p.preco).replace('.', ','), categoria_id: p.categoria_id, ativo: p.ativo, permite_observacao: p.permite_observacao !== false, vendido_por_kg: !!p.vendido_por_kg, foto_url: p.foto_url } : vazio)
   const [fotoArquivo, setFotoArquivo] = useState<File | null>(null)
   const [fotoPreview, setFotoPreview] = useState<string | null>(null)
   const [enviando, setEnviando] = useState(false)
@@ -642,7 +642,7 @@ function FormProduto({ loja, cats, grupos, gruposIniciais, sugestoesIniciais, di
       if (erroEnvio) return erro('Não foi possível enviar a foto: ' + erroEnvio.message)
       foto_url = supabase.storage.from('produtos').getPublicUrl(caminho).data.publicUrl
     }
-    const dados = { nome: f.nome.trim(), descricao: f.descricao.trim() || null, preco, categoria_id: f.categoria_id, ativo: f.ativo, permite_observacao: f.permite_observacao, foto_url, dias_semana: diasSel.length ? diasSel : null }
+    const dados = { nome: f.nome.trim(), descricao: f.descricao.trim() || null, preco, categoria_id: f.categoria_id, ativo: f.ativo, permite_observacao: f.permite_observacao, vendido_por_kg: f.vendido_por_kg, foto_url, dias_semana: diasSel.length ? diasSel : null }
     let produtoId = p?.id
     if (p) {
       const { error } = await supabase.from('produtos').update(dados).eq('id', p.id)
@@ -693,7 +693,7 @@ function FormProduto({ loja, cats, grupos, gruposIniciais, sugestoesIniciais, di
   async function duplicar() {
     if (!p) return
     setDuplicando(true)
-    const dados = { nome: `${p.nome} (cópia)`, descricao: p.descricao, preco: p.preco, categoria_id: p.categoria_id, ativo: p.ativo, permite_observacao: p.permite_observacao !== false, foto_url: p.foto_url, dias_semana: diasSel.length ? diasSel : null }
+    const dados = { nome: `${p.nome} (cópia)`, descricao: p.descricao, preco: p.preco, categoria_id: p.categoria_id, ativo: p.ativo, permite_observacao: p.permite_observacao !== false, vendido_por_kg: !!p.vendido_por_kg, foto_url: p.foto_url, dias_semana: diasSel.length ? diasSel : null }
     const { data: criado, error } = await supabase.from('produtos').insert({ ...dados, loja_id: loja.id }).select('id').single()
     if (error) { setDuplicando(false); return erro(error.message) }
     if (gruposSel.length) {
@@ -717,7 +717,7 @@ function FormProduto({ loja, cats, grupos, gruposIniciais, sugestoesIniciais, di
       <label className="block"><span className="mb-1 block text-sm font-bold">Descrição <span className="font-normal text-neutral-500">(opcional)</span></span>
         <input className={campo} placeholder="Ex.: Pão, hambúrguer 150 g, queijo e salada" value={f.descricao} onChange={e => set('descricao', e.target.value)} /></label>
       <div className="grid grid-cols-2 gap-2">
-        <label className="block"><span className="mb-1 block text-sm font-bold">Preço (R$)</span>
+        <label className="block"><span className="mb-1 block text-sm font-bold">{f.vendido_por_kg ? 'Preço do kg (R$)' : 'Preço (R$)'}</span>
           <input className={campo} placeholder="Ex.: 9,50" inputMode="decimal" value={f.preco} onChange={e => set('preco', e.target.value)} /></label>
         <label className="block"><span className="mb-1 block text-sm font-bold">Categoria</span>
           <select className={campo} value={f.categoria_id} onChange={e => set('categoria_id', e.target.value)}>{cats.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}</select></label>
@@ -745,6 +745,10 @@ function FormProduto({ loja, cats, grupos, gruposIniciais, sugestoesIniciais, di
       <label className="block">
         <span className="flex items-center gap-2 font-bold"><input type="checkbox" checked={f.permite_observacao} onChange={e => set('permite_observacao', e.target.checked)} /> Espaço para Observação</span>
         <span className="block pl-6 text-sm text-neutral-600">O cliente pode escrever observações neste item (ex.: sem cebola, alergia). Desmarque em bebidas e itens que não precisam.</span>
+      </label>
+      <label className="block">
+        <span className="flex items-center gap-2 font-bold"><input type="checkbox" checked={f.vendido_por_kg} onChange={e => set('vendido_por_kg', e.target.checked)} /> Este produto é vendido por quilo (kg)</span>
+        <span className="block pl-6 text-sm text-neutral-600">Para self service: o preço acima vira o preço do kg e, no PDV, a atendente digita o peso (ex.: 0,546 kg). Não aparece no cardápio online — para delivery, use marmita P, M e G com preço fechado (nos Adicionais, seleção única).</span>
       </label>
       <div>
         <span className="mb-1 block text-sm font-bold">Dias da semana em que este produto é vendido</span>
@@ -813,7 +817,7 @@ function AbaCardapio({ loja }: { loja: Loja }) {
   const carregar = useCallback(async () => {
     const [c, p, g, h] = await Promise.all([
       supabase.from('categorias').select('id,nome,ordem').eq('loja_id', loja.id).order('ordem'),
-      supabase.from('produtos').select('id,categoria_id,nome,descricao,preco,ativo,permite_observacao,foto_url,dias_semana').eq('loja_id', loja.id).order('ordem').order('nome'),
+      supabase.from('produtos').select('id,categoria_id,nome,descricao,preco,ativo,permite_observacao,vendido_por_kg,foto_url,dias_semana').eq('loja_id', loja.id).order('ordem').order('nome'),
       supabase.from('grupos_adicionais').select('id,nome,tipo,obrigatorio,maximo').eq('loja_id', loja.id).order('ordem'),
       supabase.from('horarios_funcionamento').select('dia_semana,fechado').eq('loja_id', loja.id),
     ])
